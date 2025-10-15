@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.parking.dao.ParkingSpaceMapper">
+    
+    <select id="selectById" parameterType="java.lang.Long" resultType="com.parking.model.entity.ParkingSpaceEntity">
+        SELECT * FROM parking_space WHERE id = #{id}
+    </select>
+    
+    <select id="selectAvailableSpaces" parameterType="java.lang.Long" resultType="com.parking.model.entity.ParkingSpaceEntity">
+        SELECT * FROM parking_space 
+        WHERE parking_id = #{parkingId} 
+        AND status = 'AVAILABLE'
+    </select>
+    
+    <update id="lockSpace" parameterType="java.lang.Long">
+        UPDATE parking_space 
+        SET status = 'RESERVED' 
+        WHERE id = #{spaceId} 
+        AND status = 'AVAILABLE'
+    </update>
+    
+    <update id="updateStatus">
+        UPDATE parking_space 
+        SET status = #{status}, 
+            updated_at = NOW() 
+        WHERE id = #{spaceId}
+    </update>
+</mapper>

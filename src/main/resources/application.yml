@@ -1,0 +1,15 @@
+spring:
+  profiles:
+    active: ${APP_ENV:dev}
+
+# 应用基础配置
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# 日志配置
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.parking: DEBUG
