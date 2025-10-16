@@ -4,7 +4,7 @@ import com.parking.model.dto.ReserveDTO;
 import com.parking.model.dto.ResultDTO;
 import com.parking.service.ParkingService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
+// 移除Spring Security相关导入
 import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
 
@@ -19,7 +19,7 @@ public class ParkingController {
      * 预约停车位
      */
     @PostMapping("/reserve")
-    @PreAuthorize("hasRole('USER')")
+    // 移除@PreAuthorize注解，因为移除了Spring Security依赖
     public ResultDTO reserveParking(@RequestBody @Valid ReserveDTO reserveDTO) {
         return parkingService.reserve(reserveDTO);
     }

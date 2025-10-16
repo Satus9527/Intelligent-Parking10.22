@@ -1,7 +1,7 @@
 @echo off
 
-set DB_USER=parking_admin
-set DB_PASS=password
+set DB_USER=root
+set DB_PASS=root
 set DB_NAME=parking_db
 
 echo Database initialization started...

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.parking.dao.ReservationMapper">
+    
+    <!-- 查询用户的预约列表 -->
+    <select id="selectByUserId" resultType="com.parking.model.entity.ReservationEntity">
+        <bind name="offset" value="(pageNum - 1) * pageSize" />
+        <![CDATA[
+        SELECT * FROM reservation 
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+        ]]>
+    </select>
+    
+    <!-- 根据条件查询预约列表 -->
+    <select id="selectByCondition" parameterType="com.parking.model.dto.ReservationQueryDTO" resultType="com.parking.model.entity.ReservationEntity">
+        <![CDATA[SELECT * FROM reservation WHERE 1 = 1]]>
+        <if test="userId != null">
+            <![CDATA[ AND user_id = #{userId}]]>
+        </if>
+        <if test="parkingSpaceId != null">
+            <![CDATA[ AND parking_space_id = #{parkingSpaceId}]]>
+        </if>
+        <if test="parkingId != null">
+            <![CDATA[ AND parking_id = #{parkingId}]]>
+        </if>
+        <if test="status != null">
+            <![CDATA[ AND status = #{status}]]>
+        </if>
+        <if test="reservationNo != null and reservationNo != ''">
+            <![CDATA[ AND reservation_no = #{reservationNo}]]>
+        </if>
+        <if test="vehicleInfo != null and vehicleInfo != ''">
+            <![CDATA[ AND vehicle_info LIKE CONCAT('%', #{vehicleInfo}, '%')]]>
+        </if>
+        <if test="startTimeFrom != null">
+            <![CDATA[ AND start_time >= #{startTimeFrom}]]>
+        </if>
+        <if test="startTimeTo != null">
+            <![CDATA[ AND start_time <= #{startTimeTo}]]>
+        </if>
+        <if test="endTimeFrom != null">
+            <![CDATA[ AND end_time >= #{endTimeFrom}]]>
+        </if>
+        <if test="endTimeTo != null">
+            <![CDATA[ AND end_time <= #{endTimeTo}]]>
+        </if>
+        <![CDATA[ ORDER BY created_at DESC]]>
+    </select>
+    
+    <!-- 查询车位在指定时间段内的预约 -->
+    <select id="checkOverlappingReservation" resultType="java.lang.Integer">
+        <![CDATA[
+        SELECT COUNT(*) FROM reservation 
+        WHERE parking_space_id = #{parkingSpaceId}
+        AND status = 0
+        ]]>
+        <if test="excludeId != null">
+            <![CDATA[ AND id != #{excludeId}]]>
+        </if>
+        <![CDATA[
+        AND (
+            (start_time < #{endTime} AND end_time > #{startTime})
+        )
+        ]]>
+    </select>
+    
+    <!-- 查询车位在指定时间段内的预约（排除特定预约） -->
+    <select id="checkOverlappingReservationExclude" resultType="java.lang.Integer">
+        <![CDATA[
+        SELECT COUNT(*) FROM reservation 
+        WHERE parking_space_id = #{parkingSpaceId}
+        AND status = 0
+        AND id != #{excludeId}
+        AND (
+            (start_time < #{endTime} AND end_time > #{startTime})
+        )
+        ]]>
+    </select>
+    
+    <!-- 更新预约状态（使用乐观锁） -->
+    <update id="updateStatusWithVersion">
+        UPDATE reservation 
+        SET status = #{status},
+            version = version + 1,
+            updated_at = NOW()
+        WHERE id = #{id} AND version = #{version}
+    </update>
+    
+    <!-- 更新超时预约 -->
+    <update id="updateTimeoutReservations">
+        <![CDATA[
+        UPDATE reservation 
+        SET status = 3,  -- TIMEOUT
+            updated_at = NOW()
+        WHERE status = 0  -- PENDING
+        AND end_time < #{currentTime}
+        ]]>
+    </update>
+    
+    <!-- 根据预约编号查询预约 -->
+    <select id="selectByReservationNo" parameterType="java.lang.String" resultType="com.parking.model.entity.ReservationEntity">
+        SELECT * FROM reservation 
+        WHERE reservation_no = #{reservationNo}
+    </select>
+</mapper>

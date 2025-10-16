@@ -17,7 +17,8 @@
     
     <update id="lockSpace" parameterType="java.lang.Long">
         UPDATE parking_space 
-        SET status = 'RESERVED' 
+        SET status = 'RESERVED',
+            state = 1
         WHERE id = #{spaceId} 
         AND status = 'AVAILABLE'
     </update>
@@ -28,4 +29,67 @@
             updated_at = NOW() 
         WHERE id = #{spaceId}
     </update>
+    
+    <!-- 新增SQL语句 -->
+    
+    <!-- 查询可用车位列表（带条件） -->
+    <select id="selectAvailableSpacesByCondition" parameterType="com.parking.model.dto.ParkingSpaceQueryDTO" resultType="com.parking.model.entity.ParkingSpaceEntity">
+        SELECT * FROM parking_space 
+        WHERE 1 = 1
+        <if test="queryDTO.floor != null and queryDTO.floor != ''">
+            AND floor = #{queryDTO.floor}
+        </if>
+        <if test="queryDTO.category != null">
+            AND category = #{queryDTO.category}
+        </if>
+        <if test="queryDTO.state != null">
+            AND state = #{queryDTO.state}
+        </if>
+        <if test="queryDTO.status != null and queryDTO.status != ''">
+            AND status = #{queryDTO.status}
+        </if>
+        <if test="queryDTO.isAvailable != null">
+            AND is_available = #{queryDTO.isAvailable}
+        </if>
+        <if test="queryDTO.isDisabled != null">
+            AND is_disabled = #{queryDTO.isDisabled}
+        </if>
+    </select>
+    
+    <!-- 更新车位状态（数字状态） -->
+    <update id="updateState" parameterType="map">
+        UPDATE parking_space 
+        SET state = #{newState}, 
+            <choose>
+                <when test="newState == 0">status = 'AVAILABLE'</when>
+                <when test="newState == 1">status = 'RESERVED'</when>
+                <when test="newState == 2">status = 'OCCUPIED'</when>
+            </choose>,
+            updated_at = NOW() 
+        WHERE id = #{id} AND state = #{oldState}
+    </update>
+    
+    <!-- 使用乐观锁更新车位状态 -->
+    <update id="updateStateWithVersion" parameterType="map">
+        UPDATE parking_space 
+        SET state = #{newState}, 
+            <choose>
+                <when test="newState == 0">status = 'AVAILABLE'</when>
+                <when test="newState == 1">status = 'RESERVED'</when>
+                <when test="newState == 2">status = 'OCCUPIED'</when>
+            </choose>,
+            version = version + 1,
+            updated_at = NOW() 
+        WHERE id = #{id} AND state = #{oldState} AND version = #{version}
+    </update>
+    
+    <!-- 根据车位编号查询车位 -->
+    <select id="selectBySpaceNumber" parameterType="java.lang.String" resultType="com.parking.model.entity.ParkingSpaceEntity">
+        SELECT * FROM parking_space WHERE space_number = #{spaceNumber}
+    </select>
+    
+    <!-- 根据楼层查询车位 -->
+    <select id="selectByFloor" parameterType="java.lang.String" resultType="com.parking.model.entity.ParkingSpaceEntity">
+        SELECT * FROM parking_space WHERE floor = #{floor}
+    </select>
 </mapper>

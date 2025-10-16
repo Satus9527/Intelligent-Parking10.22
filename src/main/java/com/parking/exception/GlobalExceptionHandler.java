@@ -3,6 +3,7 @@ package com.parking.exception;
 import com.parking.model.dto.ResultDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+// 移除Spring Security相关导入
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +25,23 @@ public class GlobalExceptionHandler {
         ResultDTO result = ResultDTO.fail(ex.getMessage());
         return new ResponseEntity<>(result, HttpStatus.BAD_REQUEST);
     }
+    
+    /**
+     * 处理访问拒绝异常 (403错误)
+     * 注意：暂时注释掉，因为移除了Spring Security依赖
+     */
+    /*
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseBody
+    public ResponseEntity<ResultDTO> handleAccessDeniedException(AccessDeniedException ex, WebRequest request) {
+        // 记录访问拒绝日志
+        System.err.println("访问拒绝: " + request.getDescription(false) + " - " + ex.getMessage());
+        
+        // 返回友好的403错误响应
+        ResultDTO result = ResultDTO.fail("权限不足，无法访问该资源");
+        return new ResponseEntity<>(result, HttpStatus.FORBIDDEN);
+    }
+    */
     
     /**
      * 处理参数验证异常

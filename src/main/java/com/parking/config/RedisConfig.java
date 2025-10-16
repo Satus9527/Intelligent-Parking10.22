@@ -20,17 +20,11 @@ import java.time.Duration;
 @Configuration
 public class RedisConfig {
     
-    @Value("${REDIS_HOST}")
-    private String redisHost;
-    
-    @Value("${REDIS_PORT}")
-    private int redisPort;
-    
-    @Value("${REDIS_PASSWORD}")
-    private String redisPassword;
-    
-    @Value("${REDIS_DATABASE}")
-    private int redisDatabase;
+    // 直接硬编码Redis配置，避免环境变量问题
+    private String redisHost = "localhost";
+    private int redisPort = 6379;
+    private String redisPassword = "";
+    private int redisDatabase = 0;
     
     @Bean
     public LettuceConnectionFactory redisConnectionFactory() {
