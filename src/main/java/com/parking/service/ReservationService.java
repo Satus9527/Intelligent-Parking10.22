@@ -43,6 +43,14 @@ public interface ReservationService extends IService<ReservationEntity> {
     boolean completeReservation(Long id);
     
     /**
+     * 申请退款
+     * @param id 预约ID
+     * @param userId 用户ID
+     * @return 是否申请成功
+     */
+    boolean applyRefund(Long id, Long userId);
+    
+    /**
      * 获取预约详情
      * @param id 预约ID
      * @return 预约详情
@@ -64,6 +72,29 @@ public interface ReservationService extends IService<ReservationEntity> {
      * @return 预约列表
      */
     List<ReservationDTO> queryReservations(ReservationQueryDTO queryDTO);
+    
+    /**
+     * 更新预约支付状态
+     * @param reservationId 预约ID
+     * @param paymentStatus 支付状态：0-未支付，1-已支付
+     * @return 是否更新成功
+     */
+    boolean updatePaymentStatus(Long reservationId, int paymentStatus);
+    
+    /**
+     * 更新预约退款状态
+     * @param reservationId 预约ID
+     * @param refundStatus 退款状态：0-无退款，1-退款中，2-退款成功，3-退款失败
+     * @return 是否更新成功
+     */
+    boolean updateRefundStatus(Long reservationId, int refundStatus);
+    
+    /**
+     * 将实体转换为DTO
+     * @param entity 预约实体
+     * @return 预约DTO
+     */
+    ReservationDTO convertToDTO(ReservationEntity entity);
     
     /**
      * 检查车位是否可预约

@@ -69,6 +69,19 @@ public class ReservationController {
     }
     
     /**
+     * 申请退款
+     * @param id 预约ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/refund")
+    public ResponseEntity<Boolean> applyRefund(@PathVariable Long id) {
+        // 从请求上下文获取用户ID
+        Long userId = 1L; // 临时硬编码，实际应从JWT或Session中获取
+        boolean result = reservationService.applyRefund(id, userId);
+        return ResponseEntity.ok(result);
+    }
+    
+    /**
      * 获取预约详情
      * @param id 预约ID
      * @return 预约详情

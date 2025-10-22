@@ -14,10 +14,9 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.text.SimpleDateFormat;
 import java.util.UUID;
 
 /**
@@ -25,6 +24,9 @@ import java.util.UUID;
  */
 @Service
 public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, ReservationEntity> implements ReservationService {
+    
+    @Autowired
+    private PaymentService paymentService;
     
     @Autowired
     private ReservationMapper reservationMapper;
@@ -147,6 +149,70 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     }
     
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean applyRefund(Long id, Long userId) {
+        // 查询预约信息
+        ReservationEntity entity = this.getById(id);
+        if (entity == null) {
+            return false;
+        }
+        
+        // 验证是否为用户本人的预约
+        if (!entity.getUserId().equals(userId)) {
+            throw new RuntimeException("无权限操作此预约");
+        }
+        
+        // 检查是否已支付
+        if (entity.getPaymentStatus() != 1) {
+            throw new RuntimeException("只有已支付的预约可以申请退款");
+        }
+        
+        // 检查是否已经申请过退款
+        if (entity.getRefundStatus() != null && entity.getRefundStatus() != ReservationEntity.RefundStatus.NO_REFUND.getCode()) {
+            throw new RuntimeException("该预约已经申请过退款");
+        }
+        
+        // 检查预约状态是否允许退款
+        if (entity.getStatus() != ReservationEntity.ReservationStatus.CANCELLED.getCode() && 
+            entity.getStatus() != ReservationEntity.ReservationStatus.COMPLETED.getCode()) {
+            throw new RuntimeException("只有已取消或已完成的预约可以申请退款");
+        }
+        
+        // 更新退款状态为退款中
+        entity.setRefundStatus(ReservationEntity.RefundStatus.REFUNDING.getCode());
+        entity.setUpdatedAt(new Date());
+        
+        if (!this.updateById(entity)) {
+            return false;
+        }
+        
+        try {
+            // 调用支付服务进行退款
+            boolean refundResult = paymentService.refund(entity.getPaymentId(), entity.getPrice(), "用户申请退款");
+            
+            if (refundResult) {
+                // 更新退款状态为退款成功
+                entity.setRefundStatus(ReservationEntity.RefundStatus.REFUND_SUCCESS.getCode());
+            } else {
+                // 更新退款状态为退款失败
+                entity.setRefundStatus(ReservationEntity.RefundStatus.REFUND_FAILED.getCode());
+            }
+            
+            entity.setUpdatedAt(new Date());
+            this.updateById(entity);
+            
+            return refundResult;
+        } catch (Exception e) {
+            // 更新退款状态为退款失败
+            entity.setRefundStatus(ReservationEntity.RefundStatus.REFUND_FAILED.getCode());
+            entity.setUpdatedAt(new Date());
+            this.updateById(entity);
+            
+            throw new RuntimeException("申请退款失败: " + e.getMessage(), e);
+        }
+    }
+    
+    @Override
     public ReservationDTO getReservationById(Long id) {
         ReservationEntity entity = this.getById(id);
         if (entity == null) {
@@ -174,8 +240,68 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     
     @Override
     public List<ReservationDTO> queryReservations(ReservationQueryDTO queryDTO) {
-        List<ReservationEntity> entities = reservationMapper.selectByCondition(queryDTO);
+        // 构建查询条件
+        QueryWrapper<ReservationEntity> wrapper = new QueryWrapper<>();
+        
+        if (queryDTO.getUserId() != null) {
+            wrapper.eq("user_id", queryDTO.getUserId());
+        }
+        if (queryDTO.getParkingSpaceId() != null) {
+            wrapper.eq("parking_space_id", queryDTO.getParkingSpaceId());
+        }
+        if (queryDTO.getStatus() != null) {
+            wrapper.eq("status", queryDTO.getStatus());
+        }
+        if (queryDTO.getStartTime() != null) {
+            wrapper.ge("start_time", queryDTO.getStartTime());
+        }
+        if (queryDTO.getEndTime() != null) {
+            wrapper.le("end_time", queryDTO.getEndTime());
+        }
+        
+        // 执行查询
+        List<ReservationEntity> entities = reservationMapper.selectList(wrapper);
+        
+        // 转换为DTO
         return entities.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updatePaymentStatus(Long reservationId, int paymentStatus) {
+        try {
+            ReservationEntity entity = reservationMapper.selectById(reservationId);
+            if (entity == null) {
+                return false;
+            }
+            
+            entity.setPaymentStatus(paymentStatus);
+            entity.setUpdatedAt(new Date());
+            
+            return reservationMapper.updateById(entity) > 0;
+        } catch (Exception e) {
+            throw new RuntimeException("更新支付状态失败", e);
+        }
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updateRefundStatus(Long reservationId, int refundStatus) {
+        try {
+            ReservationEntity entity = reservationMapper.selectById(reservationId);
+            if (entity == null) {
+                return false;
+            }
+            
+            // 这里假设实体类中有refund_status字段
+            // 如果没有，需要先添加该字段
+            entity.setRefundStatus(refundStatus);
+            entity.setUpdatedAt(new Date());
+            
+            return reservationMapper.updateById(entity) > 0;
+        } catch (Exception e) {
+            throw new RuntimeException("更新退款状态失败", e);
+        }
     }
     
     @Override
@@ -229,6 +355,16 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
             if (status.getCode() == entity.getStatus()) {
                 dto.setStatusDesc(status.getDesc());
                 break;
+            }
+        }
+        
+        // 设置退款状态描述
+        if (entity.getRefundStatus() != null) {
+            for (ReservationEntity.RefundStatus refundStatus : ReservationEntity.RefundStatus.values()) {
+                if (refundStatus.getCode() == entity.getRefundStatus()) {
+                    dto.setRefundStatusDesc(refundStatus.getDesc());
+                    break;
+                }
             }
         }
         

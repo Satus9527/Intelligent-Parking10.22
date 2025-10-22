@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS reservation (
     start_time DATETIME NOT NULL COMMENT '预约开始时间',
     end_time DATETIME NOT NULL COMMENT '预约结束时间',
     status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '状态：pending/confirmed/cancelled/expired/completed',
+    refund_status TINYINT DEFAULT 0 COMMENT '退款状态：0-无退款，1-退款中，2-退款成功，3-退款失败',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (space_id) REFERENCES parking_space(id)

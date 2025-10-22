@@ -45,6 +45,16 @@ public class ReservationDTO {
     private String statusDesc;
     
     /**
+     * 退款状态（0-无退款，1-退款中，2-退款成功，3-退款失败）
+     */
+    private Integer refundStatus;
+    
+    /**
+     * 退款状态描述
+     */
+    private String refundStatusDesc;
+    
+    /**
      * 预约开始时间
      */
     private Date startTime;

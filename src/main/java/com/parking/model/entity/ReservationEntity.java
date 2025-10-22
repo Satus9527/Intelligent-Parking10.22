@@ -46,6 +46,11 @@ public class ReservationEntity {
     private Integer status;
     
     /**
+     * 退款状态（0-无退款，1-退款中，2-退款成功，3-退款失败）
+     */
+    private Integer refundStatus;
+    
+    /**
      * 预约开始时间
      */
     private Date startTime;
@@ -104,6 +109,32 @@ public class ReservationEntity {
         private final String desc;
         
         ReservationStatus(Integer code, String desc) {
+            this.code = code;
+            this.desc = desc;
+        }
+        
+        public Integer getCode() {
+            return code;
+        }
+        
+        public String getDesc() {
+            return desc;
+        }
+    }
+    
+    /**
+     * 退款状态枚举
+     */
+    public enum RefundStatus {
+        NO_REFUND(0, "无退款"),
+        REFUNDING(1, "退款中"),
+        REFUND_SUCCESS(2, "退款成功"),
+        REFUND_FAILED(3, "退款失败");
+        
+        private final Integer code;
+        private final String desc;
+        
+        RefundStatus(Integer code, String desc) {
             this.code = code;
             this.desc = desc;
         }

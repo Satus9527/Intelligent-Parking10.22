@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS reservation (
     end_time DATETIME COMMENT '结束时间',
     status TINYINT DEFAULT 0 COMMENT '预约状态：0-待使用，1-已使用，2-已取消，3-已过期',
     payment_status TINYINT DEFAULT 0 COMMENT '支付状态：0-未支付，1-已支付',
+    refund_status TINYINT DEFAULT 0 COMMENT '退款状态：0-无退款，1-退款中，2-退款成功，3-退款失败',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX idx_user_id (user_id),
