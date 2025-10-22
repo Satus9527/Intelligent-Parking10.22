@@ -34,7 +34,12 @@ public interface ParkingSpaceMapper extends BaseMapper<ParkingSpaceEntity> {
     /**
      * 更新车位状态（兼容原有方法）
      */
-    int updateStatus(Long spaceId, String status);
+    int updateStatus(@Param("spaceId") Long spaceId, @Param("status") String status);
+    
+    /**
+     * 更新状态为可用
+     */
+    int updateToAvailable(Long spaceId);
     
     /**
      * 更新车位状态（数字状态）

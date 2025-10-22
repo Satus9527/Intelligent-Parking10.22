@@ -11,16 +11,17 @@
     
     <select id="selectAvailableSpaces" parameterType="java.lang.Long" resultType="com.parking.model.entity.ParkingSpaceEntity">
         SELECT * FROM parking_space 
-        WHERE parking_id = #{parkingId} 
-        AND status = 'AVAILABLE'
+        WHERE parking_lot_id = #{parkingId} 
+        AND state = 0
     </select>
     
     <update id="lockSpace" parameterType="java.lang.Long">
         UPDATE parking_space 
         SET status = 'RESERVED',
-            state = 1
+            state = 1,
+            is_available = 0
         WHERE id = #{spaceId} 
-        AND status = 'AVAILABLE'
+        AND state = 0
     </update>
     
     <update id="updateStatus">
@@ -28,6 +29,17 @@
         SET status = #{status}, 
             updated_at = NOW() 
         WHERE id = #{spaceId}
+    </update>
+    
+    <!-- 更新状态为可用 -->
+    <update id="updateToAvailable">
+        UPDATE parking_space 
+        SET state = 0,
+            status = 'AVAILABLE',
+            is_available = 1,
+            updated_at = NOW()
+        WHERE id = #{spaceId}
+        AND (state = 1 OR state = 2)
     </update>
     
     <!-- 新增SQL语句 -->
