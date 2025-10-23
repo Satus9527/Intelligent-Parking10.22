@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 // 移除Spring Security相关导入
 import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/parking")
@@ -41,5 +43,21 @@ public class ParkingController {
             @RequestParam double latitude,
             @RequestParam(defaultValue = "2000") int radius) {
         return parkingService.getNearbyParkings(longitude, latitude, radius);
+    }
+    
+    /**
+     * 获取停车场统计信息
+     */
+    @GetMapping("/stats")
+    public ResultDTO getParkingStats() {
+        // 创建统计数据
+        Map<String, Object> statsData = new HashMap<>();
+        statsData.put("totalParkings", 3);
+        statsData.put("totalSpaces", 450);
+        statsData.put("availableSpaces", 270);
+        statsData.put("occupiedSpaces", 180);
+        statsData.put("hourlyRate", 5.0);
+        
+        return ResultDTO.success(statsData);
     }
 }

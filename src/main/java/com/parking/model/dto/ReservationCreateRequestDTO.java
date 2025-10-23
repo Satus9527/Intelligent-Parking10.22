@@ -11,6 +11,11 @@ import java.util.Date;
 public class ReservationCreateRequestDTO {
     
     /**
+     * 车位ID（兼容前端参数名）
+     */
+    private Long spaceId;
+    
+    /**
      * 车位ID
      */
     @NotNull(message = "车位ID不能为空")
@@ -35,6 +40,18 @@ public class ReservationCreateRequestDTO {
     private Date endTime;
     
     /**
+     * 车牌号
+     */
+    @NotNull(message = "车牌号不能为空")
+    private String plateNumber;
+    
+    /**
+     * 联系电话
+     */
+    @NotNull(message = "联系电话不能为空")
+    private String contactPhone;
+    
+    /**
      * 车辆信息
      */
     private String vehicleInfo;
@@ -43,4 +60,14 @@ public class ReservationCreateRequestDTO {
      * 备注信息
      */
     private String remark;
+    
+    /**
+     * 设置车位ID（兼容前端参数名）
+     */
+    public void setSpaceId(Long spaceId) {
+        this.spaceId = spaceId;
+        if (spaceId != null) {
+            this.parkingSpaceId = spaceId;
+        }
+    }
 }

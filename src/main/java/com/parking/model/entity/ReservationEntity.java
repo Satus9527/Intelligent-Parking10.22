@@ -71,6 +71,16 @@ public class ReservationEntity {
     private Date actualExitTime;
     
     /**
+     * 车牌号
+     */
+    private String plateNumber;
+    
+    /**
+     * 联系电话
+     */
+    private String contactPhone;
+    
+    /**
      * 车辆信息
      */
     private String vehicleInfo;

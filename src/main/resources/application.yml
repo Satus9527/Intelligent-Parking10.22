@@ -1,6 +1,8 @@
 spring:
   profiles:
     active: ${APP_ENV:dev}
+  main:
+    allow-circular-references: true
 
 # 应用基础配置
 server:

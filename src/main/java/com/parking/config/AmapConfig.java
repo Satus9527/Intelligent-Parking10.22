@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class AmapConfig {
-    @Value("${AMAP_API_KEY}")
+    @Value("${amap.api-key}")
     private String apiKey;
     
     @Bean

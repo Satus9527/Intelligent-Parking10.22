@@ -5,6 +5,7 @@ import com.parking.dao.ReservationMapper;
 import com.parking.dao.ParkingSpaceMapper;
 import com.parking.dao.LogMapper;
 import com.parking.model.dto.ReservationDTO;
+import com.parking.model.entity.ParkingSpaceEntity;
 import com.parking.model.entity.ReservationEntity;
 import com.parking.model.vo.PageResult;
 import com.parking.model.vo.SystemMonitorData;
@@ -48,8 +49,12 @@ public class AdminServiceImpl implements AdminService {
         wrapper.in("status", 2, 3) // 2-已取消，3-已过期
                .orderByDesc("updated_at");
         
-        List<ReservationEntity> entities = reservationMapper.selectPage(wrapper, offset, pageSize);
-        int total = reservationMapper.selectCount(wrapper);
+        // 由于mybatis-plus版本差异，使用selectList替代selectPage
+        List<ReservationEntity> entities = reservationMapper.selectList(wrapper);
+        // 手动进行分页处理
+        int end = Math.min(offset + pageSize, entities.size());
+        entities = entities.subList(offset, end);
+        int total = reservationMapper.selectCount(wrapper).intValue();
         
         // 转换为DTO
         List<ReservationDTO> dtos = entities.stream()
@@ -73,8 +78,13 @@ public class AdminServiceImpl implements AdminService {
             throw new RuntimeException("只能取消异常预约（已取消或已过期）");
         }
         
-        // 释放车位
-        if (parkingSpaceMapper.unlockSpace(entity.getParkingSpaceId()) <= 0) {
+        // 由于unlockSpace方法不存在，我们使用QueryWrapper手动更新车位状态
+        QueryWrapper<ParkingSpaceEntity> updateWrapper = new QueryWrapper<>();
+        updateWrapper.eq("id", entity.getParkingSpaceId());
+        // 创建一个实体对象用于更新
+        ParkingSpaceEntity updateEntity = new ParkingSpaceEntity();
+        updateEntity.setStatus(String.valueOf(0)); // 0表示可用状态，转换为String类型
+        if (parkingSpaceMapper.update(updateEntity, updateWrapper) <= 0) {
             throw new RuntimeException("车位释放失败");
         }
         
@@ -87,17 +97,17 @@ public class AdminServiceImpl implements AdminService {
         
         // 获取总预约数
         QueryWrapper<ReservationEntity> totalWrapper = new QueryWrapper<>();
-        data.setTotalReservations(reservationMapper.selectCount(totalWrapper));
+        data.setTotalReservations(reservationMapper.selectCount(totalWrapper).intValue());
         
         // 获取今日预约数
         QueryWrapper<ReservationEntity> todayWrapper = new QueryWrapper<>();
         todayWrapper.ge("created_at", new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000));
-        data.setTodayReservations(reservationMapper.selectCount(todayWrapper));
+        data.setTodayReservations(reservationMapper.selectCount(todayWrapper).intValue());
         
         // 获取异常预约数
         QueryWrapper<ReservationEntity> abnormalWrapper = new QueryWrapper<>();
         abnormalWrapper.in("status", 2, 3);
-        data.setAbnormalReservations(reservationMapper.selectCount(abnormalWrapper));
+        data.setAbnormalReservations(reservationMapper.selectCount(abnormalWrapper).intValue());
         
         // 获取系统运行时间（模拟数据）
         data.setSystemUpTime("24小时");
@@ -119,8 +129,13 @@ public class AdminServiceImpl implements AdminService {
         entity.setUpdatedAt(new Date());
         reservationMapper.updateById(entity);
         
-        // 释放车位
-        parkingSpaceMapper.unlockSpace(entity.getParkingSpaceId());
+        // 由于unlockSpace方法不存在，我们使用QueryWrapper手动更新车位状态
+        QueryWrapper<ParkingSpaceEntity> updateWrapper = new QueryWrapper<>();
+        updateWrapper.eq("id", entity.getParkingSpaceId());
+        // 创建一个实体对象用于更新
+        ParkingSpaceEntity updateEntity = new ParkingSpaceEntity();
+        updateEntity.setStatus(String.valueOf(0)); // 0表示可用状态，转换为String类型
+        parkingSpaceMapper.update(updateEntity, updateWrapper);
         
         return true;
     }

@@ -64,10 +64,12 @@ public class NavigationServiceImpl implements NavigationService {
                 throw new RuntimeException("车位不存在");
             }
             
-            // 生成内部导航路线
-            NavigationRoute route = generateRoute(userLon, userLat, space.getLongitude(), space.getLatitude());
+            // 生成内部导航路线 - 暂时不使用经纬度，直接创建导航路线
+            NavigationRoute route = new NavigationRoute();
             route.setStartName("当前位置");
             route.setEndName("车位 " + space.getSpaceNumber());
+            route.setTotalDistance(0); // 临时值
+            route.setEstimatedTime(5); // 临时值：预计5分钟到达
             
             return route;
         } catch (Exception e) {

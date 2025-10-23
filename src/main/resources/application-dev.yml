@@ -17,7 +17,22 @@ mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.parking.entity
 amap:
-  api-key: test_api_key
+  api-key: 0cbc240249d4b8cabab54b7f4ee81bdb
+
+# 微信配置
+wechat:
+  appid: test_wechat_appid
+  secret: test_wechat_secret_key
+  mch_id: test_wechat_mch_id
+
+# 支付配置
+payment:
+  wechat:
+    appid: test_wechat_appid
+    mchId: test_wechat_mch_id
+  timeout: 1800000
+
+# JWT配置
 jwt:
   secret: test_jwt_secret_key
   expiration: 3600
