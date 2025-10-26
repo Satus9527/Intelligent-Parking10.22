@@ -25,5 +25,5 @@ public interface ParkingService {
      * @param radius 搜索半径（米）
      * @return 停车场列表
      */
-    ResultDTO getNearbyParkings(double longitude, double latitude, int radius);
+    ResultDTO getNearbyParkings(Double longitude, Double latitude, Integer radius);
 }

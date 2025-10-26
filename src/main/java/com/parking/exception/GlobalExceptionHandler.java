@@ -60,15 +60,18 @@ public class GlobalExceptionHandler {
     }
     
     /**
-     * 处理其他所有未捕获的异常
+     * 处理所有未捕获的异常
      */
     @ExceptionHandler(Exception.class)
     @ResponseBody
     public ResponseEntity<ResultDTO> handleAllExceptions(Exception ex, WebRequest request) {
-        // 记录异常日志
+        // 记录详细的异常信息，包括类型、消息和部分堆栈
+        System.err.println("系统内部错误 - 异常类型: " + ex.getClass().getName());
+        System.err.println("系统内部错误 - 异常消息: " + ex.getMessage());
         ex.printStackTrace();
         
-        ResultDTO result = ResultDTO.fail("系统异常，请稍后重试");
+        // 返回更详细的错误信息
+        ResultDTO result = ResultDTO.fail("系统内部错误: " + ex.getClass().getSimpleName() + ": " + ex.getMessage());
         return new ResponseEntity<>(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
