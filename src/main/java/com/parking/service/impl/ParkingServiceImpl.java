@@ -1,6 +1,7 @@
 package com.parking.service.impl;
 
 import com.parking.dao.ParkingSpaceMapper;
+import com.parking.dao.ReservationMapper;
 import com.parking.exception.ParkingException;
 import com.parking.model.dto.ReserveDTO;
 import com.parking.model.dto.ResultDTO;
@@ -14,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class ParkingServiceImpl implements ParkingService {
@@ -23,6 +26,9 @@ public class ParkingServiceImpl implements ParkingService {
     
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+    
+    @Autowired
+    private ReservationMapper reservationMapper;
     
     @Override
     @Transactional
@@ -84,9 +90,9 @@ public class ParkingServiceImpl implements ParkingService {
     public ResultDTO getNearbyParkings(Double longitude, Double latitude, Integer radius) {
         try {
             // 提供默认值
-            double defaultLongitude = longitude != null ? longitude : 116.4074;
-            double defaultLatitude = latitude != null ? latitude : 39.9042;
-            int defaultRadius = radius != null ? radius : 3000;
+            double defaultLongitude = longitude != null ? longitude : 113.3248; // 广州市中心经度
+            double defaultLatitude = latitude != null ? latitude : 23.1288; // 广州市中心纬度
+            int defaultRadius = radius != null ? radius : 10000; // 默认10公里
             
             // 详细参数验证
             if (defaultLongitude < -180 || defaultLongitude > 180) {
@@ -95,57 +101,98 @@ public class ParkingServiceImpl implements ParkingService {
             if (defaultLatitude < -90 || defaultLatitude > 90) {
                 return ResultDTO.fail("纬度必须在-90到90之间");
             }
-            if (defaultRadius <= 0 || defaultRadius > 10000) {
-                return ResultDTO.fail("搜索半径必须在1-10000米之间");
+            if (defaultRadius <= 0 || defaultRadius > 100000) {
+                return ResultDTO.fail("搜索半径必须在1-100000米之间");
             }
             
-            // 构建模拟数据，使用List和Map结构返回更有意义的数据
-            java.util.List<java.util.Map<String, Object>> parkings = new java.util.ArrayList<>();
+            // 关键修复：从数据库查询所有停车场
+            List<Map<String, Object>> parkings;
+            try {
+                parkings = reservationMapper.selectAllParkingLots();
+                System.out.println("数据库查询成功");
+            } catch (Exception e) {
+                // 捕获SQL异常，提供更详细的错误信息
+                System.err.println("查询停车场数据失败: " + e.getMessage());
+                e.printStackTrace();
+                return ResultDTO.fail("查询停车场数据失败: " + e.getMessage());
+            }
             
-            // 添加几个模拟停车场
-            java.util.Map<String, Object> parking1 = new java.util.HashMap<>();
-            parking1.put("id", "1");
-            parking1.put("name", "智能停车场A区");
-            parking1.put("address", "示例街道1号");
-            parking1.put("distance", 500); // 距离（米）
-            parking1.put("totalSpaces", 150);
-            parking1.put("availableSpaces", 85);
-            parking1.put("hourlyRate", 5.0);
-            parking1.put("longitude", defaultLongitude + 0.001);
-            parking1.put("latitude", defaultLatitude + 0.001);
-            parkings.add(parking1);
+            if (parkings == null || parkings.isEmpty()) {
+                // 添加更详细的错误信息
+                System.out.println("警告：未找到停车场数据，请检查数据库 parking_lot 表是否有数据");
+                return ResultDTO.fail("未找到停车场数据，请确保数据库 parking_lot 表中有数据");
+            }
             
-            java.util.Map<String, Object> parking2 = new java.util.HashMap<>();
-            parking2.put("id", "2");
-            parking2.put("name", "智能停车场B区");
-            parking2.put("address", "示例街道2号");
-            parking2.put("distance", 800);
-            parking2.put("totalSpaces", 200);
-            parking2.put("availableSpaces", 120);
-            parking2.put("hourlyRate", 6.0);
-            parking2.put("longitude", defaultLongitude - 0.002);
-            parking2.put("latitude", defaultLatitude + 0.001);
-            parkings.add(parking2);
+            System.out.println("成功查询到 " + parkings.size() + " 个停车场");
             
-            // 添加一个默认停车场，确保至少返回一个结果
-            java.util.Map<String, Object> defaultParking = new java.util.HashMap<>();
-            defaultParking.put("id", "3");
-            defaultParking.put("name", "智能停车场中心区");
-            defaultParking.put("address", "示例市中心");
-            defaultParking.put("distance", 1200);
-            defaultParking.put("totalSpaces", 300);
-            defaultParking.put("availableSpaces", 150);
-            defaultParking.put("hourlyRate", 8.0);
-            defaultParking.put("longitude", defaultLongitude);
-            defaultParking.put("latitude", defaultLatitude);
-            parkings.add(defaultParking);
+            // 计算距离并过滤（未来优化：可以在SQL中计算距离并过滤）
+            for (Map<String, Object> parking : parkings) {
+                // 确保ID是数字类型
+                Object idObj = parking.get("id");
+                if (idObj != null) {
+                    if (idObj instanceof Number) {
+                        parking.put("id", idObj);
+                    } else {
+                        parking.put("id", Long.parseLong(String.valueOf(idObj)));
+                    }
+                }
+                
+                // 计算距离（如果停车场有经纬度）
+                Object parkingLongitude = parking.get("longitude");
+                Object parkingLatitude = parking.get("latitude");
+                if (parkingLongitude != null && parkingLatitude != null) {
+                    try {
+                        double parkingLng = Double.parseDouble(String.valueOf(parkingLongitude));
+                        double parkingLat = Double.parseDouble(String.valueOf(parkingLatitude));
+                        double distance = calculateDistance(
+                            defaultLongitude, defaultLatitude,
+                            parkingLng, parkingLat
+                        );
+                        parking.put("distance", (int)(distance * 1000)); // 转换为米
+                    } catch (Exception e) {
+                        parking.put("distance", Integer.MAX_VALUE); // 无法计算时设为最大值
+                    }
+                } else {
+                    parking.put("distance", Integer.MAX_VALUE);
+                }
+            }
+            
+            // 按距离排序
+            parkings.sort((a, b) -> {
+                int distA = (Integer) a.getOrDefault("distance", Integer.MAX_VALUE);
+                int distB = (Integer) b.getOrDefault("distance", Integer.MAX_VALUE);
+                return Integer.compare(distA, distB);
+            });
+            
+            // 过滤半径内的停车场
+            List<Map<String, Object>> nearbyParkings = new java.util.ArrayList<>();
+            for (Map<String, Object> parking : parkings) {
+                int distance = (Integer) parking.getOrDefault("distance", Integer.MAX_VALUE);
+                if (distance <= defaultRadius) {
+                    nearbyParkings.add(parking);
+                }
+            }
             
             // 返回结构化数据
-            return ResultDTO.success(parkings);
+            return ResultDTO.success(nearbyParkings.isEmpty() ? parkings : nearbyParkings);
         } catch (Exception e) {
             // 捕获异常并记录，返回友好的错误信息
             e.printStackTrace();
-            return ResultDTO.fail("获取附近停车场失败，请稍后重试");
+            return ResultDTO.fail("获取附近停车场失败，请稍后重试：" + e.getMessage());
         }
+    }
+    
+    /**
+     * 计算两点之间的距离（单位：米）
+     */
+    private double calculateDistance(double lng1, double lat1, double lng2, double lat2) {
+        final int R = 6371000; // 地球半径（米）
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 }

@@ -170,7 +170,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { fetchFloorSpaces, fetchParkingDetail } from '../api/parking'
+import { fetchParkingSpaces, fetchParkingDetail } from '../api/parking'
 import { showErrorToast, showSuccessToast } from '../utils'
 
 export default {
@@ -178,7 +178,12 @@ export default {
   setup() {
     const router = useRouter()
     const route = useRoute()
-    const parkingId = computed(() => route.params.parkingId)
+    const parkingId = computed(() => {
+      const id = route.params.parkingId
+      // 确保返回数字ID
+      const numId = Number(id)
+      return numId > 0 ? numId : id
+    })
     
     const loading = ref(false)
     const refreshing = ref(false)
@@ -284,20 +289,54 @@ export default {
           return
         }
         
-        // 检查是否启用了模拟数据（开发环境调试用）
-        if (import.meta.env.DEV && window.__MOCK_ENABLED__) {
-          console.log('使用模拟数据获取车位信息')
+        // 关键修复：调用真实的 API 获取车位数据
+        const parkingIdNum = Number(parkingId.value)
+        if (!parkingIdNum || parkingIdNum <= 0) {
+          throw new Error('无效的停车场ID')
         }
         
-        const response = await fetchFloorSpaces(parkingId.value, selectedFloor.value)
+        // 构造查询参数，调用真实的 searchSpaces API
+        const queryParams = {
+          parkingId: parkingIdNum,         // 停车场ID（数字）
+          floor: selectedFloorName.value,  // 楼层名称
+          pageNum: 1,
+          pageSize: 999  // 获取该楼层所有车位
+        }
+        
+        console.log('加载车位数据，查询参数:', queryParams)
+        
+        // 调用真实的 searchSpaces API（通过 fetchParkingSpaces，传递查询对象）
+        const response = await fetchParkingSpaces(queryParams)
         
         if (response.code === 200) {
-          // 处理当前楼层的数据
-          const currentFloorSpaces = response.data
+          // response.data 应该是一个列表 List<ParkingSpaceDTO>
+          const currentFloorSpaces = Array.isArray(response.data) ? response.data : []
+          
+          console.log('获取到车位数据:', currentFloorSpaces.length, '个车位')
+          
+          // 处理数据，确保字段名统一，并确保ID是数字
+          const processedSpaces = currentFloorSpaces.map(space => {
+            const processed = {
+              ...space,
+              id: Number(space.id), // 关键：确保 id 是数字，不是字符串
+              number: space.spaceNumber || space.number, // 确保使用 spaceNumber
+              floorId: selectedFloor.value, // 设置楼层ID
+              floorName: selectedFloorName.value, // 设置楼层名称
+              status: convertStatus(space.status, space.state), // 确保状态字段正确
+              type: space.type || space.category ? getTypeText(space.type || space.category) : undefined
+            }
+            // 验证ID转换是否成功
+            if (!processed.id || processed.id <= 0 || isNaN(processed.id)) {
+              console.error('警告：车位ID无效:', space.id, '转换后:', processed.id)
+            }
+            return processed
+          })
+          
+          console.log('处理后的车位数据（前3个）:', processedSpaces.slice(0, 3).map(s => ({ id: s.id, number: s.number, status: s.status })))
           
           // 更新总数据数组
           spacesData.value = spacesData.value.filter(space => space.floorId !== selectedFloor.value)
-          spacesData.value = [...spacesData.value, ...currentFloorSpaces]
+          spacesData.value = [...spacesData.value, ...processedSpaces]
           
           // 计算楼层统计信息
           updateFloorStats()
@@ -310,58 +349,41 @@ export default {
       } catch (err) {
         error.value = err.message || '获取车位数据失败'
         console.error('加载车位数据失败:', err)
-        
-        // 开发环境下，如果模拟数据已启用但仍然失败，使用备用的模拟数据
-        if (import.meta.env.DEV && window.__MOCK_ENABLED__) {
-          console.warn('使用备用模拟数据')
-          useFallbackMockData()
-        }
       } finally {
         loading.value = false
         refreshing.value = false
       }
     }
     
-    // 备用模拟数据方法
-    const useFallbackMockData = () => {
-      const floorId = selectedFloor.value
-      const floorName = selectedFloorName.value
-      const mockSpaces = []
-      const statuses = ['available', 'occupied', 'reserved', 'maintenance', 'disabled']
-      const types = ['standard', 'large', 'disabled', 'ev']
-      
-      // 生成模拟车位
-      for (let i = 1; i <= 50; i++) {
-        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)]
-        const randomType = Math.random() > 0.8 ? types[Math.floor(Math.random() * types.length)] : undefined
-        const area = String.fromCharCode(65 + Math.floor((i-1) / 10))
-        const nearby = ['主通道', '电梯口', '楼梯间', '入口处'][Math.floor(Math.random() * 4)]
-        
-        mockSpaces.push({
-          id: `${floorId}-${String(i).padStart(3, '0')}`,
-          number: String(i).padStart(3, '0'),
-          floorId,
-          floorName,
-          status: randomStatus,
-          type: randomType,
-          area,
-          nearby
-        })
+    // 转换状态：将后端状态转换为前端状态
+    const convertStatus = (status, state) => {
+      // 如果后端返回字符串状态
+      if (status) {
+        const statusLower = status.toLowerCase()
+        if (statusLower === 'available') return 'available'
+        if (statusLower === 'occupied') return 'occupied'
+        if (statusLower === 'reserved') return 'reserved'
+        if (statusLower === 'maintenance') return 'maintenance'
       }
-      
-      // 更新组件数据
-      spacesData.value = spacesData.value.filter(space => space.floorId !== floorId)
-      spacesData.value = [...spacesData.value, ...mockSpaces]
-      
-      // 计算楼层统计信息
-      updateFloorStats()
-      
-      // 更新时间
-      updateTime.value = new Date().toLocaleTimeString('zh-CN')
-      
-      // 清除错误状态，因为我们有了备用数据
-      error.value = ''
+      // 如果后端返回数字状态
+      if (state !== null && state !== undefined) {
+        if (state === 0) return 'available'
+        if (state === 1) return 'reserved'
+        if (state === 2) return 'occupied'
+      }
+      // 默认状态
+      return 'unknown'
     }
+    
+    // 获取类型文本
+    const getTypeText = (type) => {
+      if (typeof type === 'number') {
+        const typeMap = { 0: 'standard', 1: 'large', 2: 'disabled', 3: 'ev' }
+        return typeMap[type] || 'standard'
+      }
+      return type
+    }
+    
     
     // 更新楼层统计信息
     const updateFloorStats = () => {
@@ -434,13 +456,49 @@ export default {
         return
       }
       
+      // 关键修复：确保 ID 是数字类型
+      const spaceIdNum = Number(selectedSpace.value.id)
+      const parkingIdNum = Number(parkingId.value)
+      
+      // 验证车位ID
+      if (!spaceIdNum || spaceIdNum <= 0 || isNaN(spaceIdNum)) {
+        console.error('无效的车位ID:', {
+          原始ID: selectedSpace.value.id,
+          类型: typeof selectedSpace.value.id,
+          转换后: spaceIdNum,
+          是否NaN: isNaN(spaceIdNum)
+        })
+        showErrorToast('车位ID无效，请重新选择')
+        return
+      }
+      
+      // 验证停车场ID
+      if (!parkingIdNum || parkingIdNum <= 0 || isNaN(parkingIdNum)) {
+        console.error('无效的停车场ID:', {
+          原始ID: parkingId.value,
+          类型: typeof parkingId.value,
+          转换后: parkingIdNum
+        })
+        showErrorToast('停车场ID无效')
+        return
+      }
+      
+      // 这里的 selectedSpace.value.id 现在应该是来自数据库的真实数字ID
+      console.log('即将跳转预约，车位信息:', {
+        车位ID: spaceIdNum,
+        车位ID类型: typeof spaceIdNum,
+        停车场ID: parkingIdNum,
+        车位编号: selectedSpace.value.number,
+        楼层: selectedSpace.value.floorName
+      })
+      
       router.push({
         path: '/reservation',
         query: {
-          parkingId: parkingId.value,
-          spaceId: selectedSpace.value.id,
+          parkingId: parkingIdNum, // 确保是数字
+          spaceId: spaceIdNum, // 确保是数字，来自数据库的真实ID
           parkingName: parkingInfo.value.name,
-          spaceNumber: selectedSpace.value.number,
+          spaceNumber: selectedSpace.value.number, // 确保使用 number
           floorName: selectedSpace.value.floorName
         }
       })
@@ -456,29 +514,6 @@ export default {
       showSuccessToast('导航功能开发中')
     }
     
-    // 预约车位
-    const reserveSpace = () => {
-      if (!selectedSpace.value || selectedSpace.value.status !== 'available') {
-        showErrorToast('该车位不可预约')
-        return
-      }
-      
-      if (!parkingInfo.value.hasReservation) {
-        showErrorToast('该停车场暂不支持预约')
-        return
-      }
-      
-      router.push({
-        path: '/reservation',
-        query: {
-          parkingId: parkingId.value,
-          spaceId: selectedSpace.value.id,
-          parkingName: parkingInfo.value.name,
-          spaceNumber: selectedSpace.value.number,
-          floorName: selectedSpace.value.floorName
-        }
-      })
-    }
     
     // 设置自动刷新
     const setupAutoRefresh = () => {
@@ -542,7 +577,6 @@ export default {
       goBack,
       backToDetail,
       navigateToMap,
-      reserveSpace,
       loadSpacesData,
       goToReservation
     }

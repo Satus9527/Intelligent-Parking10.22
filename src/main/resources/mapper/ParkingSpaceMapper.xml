@@ -110,6 +110,9 @@
             updated_at AS updatedAt
         FROM parking_space 
         WHERE 1 = 1
+        <if test="queryDTO.parkingId != null">
+            AND parking_id = #{queryDTO.parkingId}
+        </if>
         <if test="queryDTO.floor != null and queryDTO.floor != ''">
             AND floor = #{queryDTO.floor}
         </if>

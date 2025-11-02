@@ -120,4 +120,22 @@
         WHERE id = #{parkingId}
         LIMIT 1
     </select>
+    
+    <!-- 查询所有停车场列表（用于附近停车场接口） -->
+    <select id="selectAllParkingLots" resultType="java.util.HashMap">
+        SELECT 
+            id,
+            name,
+            address,
+            hourly_rate AS hourlyRate,
+            total_spaces AS totalSpaces,
+            available_spaces AS availableSpaces,
+            status,
+            operating_hours AS operatingHours,
+            longitude,
+            latitude
+        FROM parking_lot
+        WHERE (status = 'open' OR status IS NULL OR status = '')
+        ORDER BY id ASC
+    </select>
 </mapper>

@@ -8,6 +8,8 @@ import lombok.Data;
 @Data
 public class ParkingSpaceQueryDTO {
     
+    private Long parkingId; // 停车场ID
+    
     private Integer pageNum = 1;
     private Integer pageSize = 10;
     private String floor;

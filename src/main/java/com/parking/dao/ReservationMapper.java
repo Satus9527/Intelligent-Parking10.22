@@ -87,4 +87,10 @@ public interface ReservationMapper extends BaseMapper<ReservationEntity> {
      * @return 停车场信息Map（包含name, address, hourly_rate等字段）
      */
     java.util.Map<String, Object> selectParkingLotInfo(@Param("parkingId") Long parkingId);
+    
+    /**
+     * 查询所有停车场列表（用于附近停车场接口）
+     * @return 停车场列表
+     */
+    List<java.util.Map<String, Object>> selectAllParkingLots();
 }

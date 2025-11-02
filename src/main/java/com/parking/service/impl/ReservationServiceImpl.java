@@ -61,25 +61,11 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         
         System.out.println("========== 预约创建 - 停车场ID验证 ==========");
         System.out.println("车位ID: " + requestDTO.getParkingSpaceId());
-        System.out.println("车位关联的停车场ID: " + parkingSpace.getParkingId());
-        System.out.println("前端传递的停车场ID: " + requestDTO.getParkingId());
         
-        // 直接从车位信息中获取parkingId（确保数据一致性）
+        // 关键修复：直接从车位信息中获取parkingId
         Long parkingId = parkingSpace.getParkingId();
         if (parkingId == null) {
-            // 如果车位没有关联的停车场，尝试使用请求中的parkingId
-            parkingId = requestDTO.getParkingId();
-            if (parkingId == null) {
-                throw new RuntimeException("无法确定停车场ID，请提供正确的车位和停车场信息");
-            }
-            System.out.println("警告：车位没有关联的停车场ID，使用前端传递的停车场ID: " + parkingId);
-        } else {
-            // 如果前端也传递了parkingId，验证是否一致（仅作为警告，不抛出错误）
-            if (requestDTO.getParkingId() != null && !requestDTO.getParkingId().equals(parkingId)) {
-                // 日志警告但不阻止预约，使用车位中的parkingId
-                System.out.println("警告：前端传递的停车场ID(" + requestDTO.getParkingId() + 
-                    ")与车位关联的停车场ID(" + parkingId + ")不一致，使用车位关联的停车场ID");
-            }
+            throw new RuntimeException("无法确定停车场ID，车位数据异常");
         }
         
         System.out.println("最终使用的停车场ID: " + parkingId);

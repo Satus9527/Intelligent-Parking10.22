@@ -143,8 +143,8 @@ export default {
     const route = useRoute()
     
     // 从路由参数获取信息
-    const parkingId = ref(route.query.parkingId || '')
-    const spaceId = ref(route.query.spaceId || '')
+    const parkingId = ref(Number(route.query.parkingId || 0))
+    const spaceId = ref(Number(route.query.spaceId || 0))
     const parkingName = ref(route.query.parkingName || '未知停车场')
     const spaceNumber = ref(route.query.spaceNumber || '未知车位')
     const floorName = ref(route.query.floorName || '未知楼层')
@@ -154,9 +154,7 @@ export default {
     
     // 表单数据
     const reservationForm = reactive({
-      parkingId: parkingId.value,
-      parkingSpaceId: spaceId.value,
-      spaceId: spaceId.value, // 兼容后端参数名
+      parkingSpaceId: spaceId.value, // 直接使用数字ID
       startTime: '',
       endTime: '',
       plateNumber: '',
@@ -291,27 +289,9 @@ export default {
       try {
         loading.value = true
         
-        // 将ID转换为数字类型
-        const convertedParkingSpaceId = convertToNumber(reservationForm.parkingSpaceId)
-        const convertedParkingId = convertToNumber(reservationForm.parkingId)
-        const convertedSpaceId = convertToNumber(reservationForm.spaceId)
-        
-        // 打印调试信息
-        console.log('========== 预约提交调试信息 ==========')
-        console.log('原始数据:', {
-          parkingSpaceId: reservationForm.parkingSpaceId,
-          parkingId: reservationForm.parkingId,
-          spaceId: reservationForm.spaceId
-        })
-        console.log('转换后数据:', {
-          parkingSpaceId: convertedParkingSpaceId,
-          parkingId: convertedParkingId,
-          spaceId: convertedSpaceId
-        })
-        
-        // 验证ID转换是否成功
-        if (!convertedParkingSpaceId || !convertedParkingId) {
-          const errorMsg = `车位ID或停车场ID无效。车位ID: ${convertedParkingSpaceId}, 停车场ID: ${convertedParkingId}`
+        // 验证ID
+        if (!reservationForm.parkingSpaceId || reservationForm.parkingSpaceId <= 0) {
+          const errorMsg = `无效的车位ID: ${reservationForm.parkingSpaceId}`
           console.error(errorMsg)
           throw new Error(errorMsg)
         }
@@ -322,16 +302,12 @@ export default {
           contactPhone: reservationForm.contactPhone,
           vehicleInfo: reservationForm.vehicleInfo || '',
           remark: reservationForm.remark || '',
-          parkingSpaceId: convertedParkingSpaceId,
-          parkingId: convertedParkingId,
-          spaceId: convertedSpaceId, // 兼容后端参数名
-          // 确保时间格式正确（转换为ISO字符串，后端会自动解析为Date）
+          parkingSpaceId: reservationForm.parkingSpaceId, // 确保这是数字
           startTime: new Date(reservationForm.startTime).toISOString(),
           endTime: new Date(reservationForm.endTime).toISOString()
         }
         
         console.log('提交数据:', submitData)
-        console.log('==================================')
         
         // 调用后端API创建预约
         const response = await createReservation(submitData)
@@ -376,44 +352,6 @@ export default {
       }
     }
     
-    // 辅助函数：将字符串ID转换为数字
-    const convertToNumber = (value) => {
-      if (value === null || value === undefined || value === '') {
-        return null
-      }
-      // 如果是数字，直接返回
-      if (typeof value === 'number') {
-        return value
-      }
-      // 如果是字符串，尝试转换为数字
-      if (typeof value === 'string') {
-        // 如果字符串是纯数字，直接转换
-        const num = Number(value)
-        if (!isNaN(num) && isFinite(num)) {
-          return num
-        }
-        // 如果字符串包含非数字字符（如 "gz_005_space_2_D2_1"），尝试提取数字部分
-        // 提取所有数字
-        const numbers = value.match(/\d+/g)
-        if (numbers && numbers.length > 0) {
-          // 优先使用较长的数字（可能是完整ID）
-          const sortedNumbers = numbers
-            .map(n => Number(n))
-            .filter(n => n > 0 && n < 999999)
-            .sort((a, b) => b - a) // 从大到小排序
-          if (sortedNumbers.length > 0) {
-            // 如果有多个数字，尝试组合或使用最大的
-            // 对于类似 "gz_005_space_2_D2_1" 的字符串，可能需要其他逻辑
-            // 这里先返回最大的有效数字
-            return sortedNumbers[0]
-          }
-        }
-      }
-      // 如果无法转换，返回null
-      console.warn('无法将ID转换为数字:', value)
-      return null
-    }
-    
     // 返回上一页
     const goBack = () => {
       router.back()
@@ -425,8 +363,6 @@ export default {
     })
     
     return {
-      parkingId,
-      spaceId,
       parkingName,
       spaceNumber,
       floorName,
