@@ -6,13 +6,55 @@
 <mapper namespace="com.parking.dao.ParkingSpaceMapper">
     
     <select id="selectById" parameterType="java.lang.Long" resultType="com.parking.model.entity.ParkingSpaceEntity">
-        SELECT * FROM parking_space WHERE id = #{id}
+        SELECT 
+            id,
+            space_number AS spaceNumber,
+            parking_id AS parkingId,
+            name,
+            location,
+            floor,
+            status,
+            type,
+            category,
+            state,
+            hourly_rate AS hourlyRate,
+            daily_rate AS dailyRate,
+            description,
+            image_url AS imageUrl,
+            is_available AS isAvailable,
+            is_disabled AS isDisabled,
+            version,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+        FROM parking_space 
+        WHERE id = #{id}
     </select>
     
     <select id="selectAvailableSpaces" parameterType="java.lang.Long" resultType="com.parking.model.entity.ParkingSpaceEntity">
-        SELECT * FROM parking_space 
-        WHERE parking_lot_id = #{parkingId} 
-        AND state = 0
+        SELECT 
+            id,
+            space_number AS spaceNumber,
+            parking_id AS parkingId,
+            name,
+            location,
+            floor,
+            status,
+            type,
+            category,
+            state,
+            hourly_rate AS hourlyRate,
+            daily_rate AS dailyRate,
+            description,
+            image_url AS imageUrl,
+            is_available AS isAvailable,
+            is_disabled AS isDisabled,
+            version,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+        FROM parking_space 
+        WHERE parking_id = #{parkingId}
+        AND (state = 0 OR status = 'AVAILABLE' OR (status IS NULL AND state IS NULL))
+        AND (is_available = 1 OR is_available IS NULL)
     </select>
     
     <update id="lockSpace" parameterType="java.lang.Long">
@@ -46,7 +88,27 @@
     
     <!-- 查询可用车位列表（带条件） -->
     <select id="selectAvailableSpacesByCondition" parameterType="com.parking.model.dto.ParkingSpaceQueryDTO" resultType="com.parking.model.entity.ParkingSpaceEntity">
-        SELECT * FROM parking_space 
+        SELECT 
+            id,
+            space_number AS spaceNumber,
+            parking_id AS parkingId,
+            name,
+            location,
+            floor,
+            status,
+            type,
+            category,
+            state,
+            hourly_rate AS hourlyRate,
+            daily_rate AS dailyRate,
+            description,
+            image_url AS imageUrl,
+            is_available AS isAvailable,
+            is_disabled AS isDisabled,
+            version,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+        FROM parking_space 
         WHERE 1 = 1
         <if test="queryDTO.floor != null and queryDTO.floor != ''">
             AND floor = #{queryDTO.floor}
@@ -97,11 +159,53 @@
     
     <!-- 根据车位编号查询车位 -->
     <select id="selectBySpaceNumber" parameterType="java.lang.String" resultType="com.parking.model.entity.ParkingSpaceEntity">
-        SELECT * FROM parking_space WHERE space_number = #{spaceNumber}
+        SELECT 
+            id,
+            space_number AS spaceNumber,
+            parking_id AS parkingId,
+            name,
+            location,
+            floor,
+            status,
+            type,
+            category,
+            state,
+            hourly_rate AS hourlyRate,
+            daily_rate AS dailyRate,
+            description,
+            image_url AS imageUrl,
+            is_available AS isAvailable,
+            is_disabled AS isDisabled,
+            version,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+        FROM parking_space 
+        WHERE space_number = #{spaceNumber}
     </select>
     
     <!-- 根据楼层查询车位 -->
     <select id="selectByFloor" parameterType="java.lang.String" resultType="com.parking.model.entity.ParkingSpaceEntity">
-        SELECT * FROM parking_space WHERE floor = #{floor}
+        SELECT 
+            id,
+            space_number AS spaceNumber,
+            parking_id AS parkingId,
+            name,
+            location,
+            floor,
+            status,
+            type,
+            category,
+            state,
+            hourly_rate AS hourlyRate,
+            daily_rate AS dailyRate,
+            description,
+            image_url AS imageUrl,
+            is_available AS isAvailable,
+            is_disabled AS isDisabled,
+            version,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+        FROM parking_space 
+        WHERE floor = #{floor}
     </select>
 </mapper>

@@ -192,6 +192,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showSuccessToast, showErrorToast } from '../utils'
+import { getReservationDetail, cancelReservationById } from '../api/reservation'
 
 export default {
   name: 'ReservationDetail',
@@ -218,92 +219,51 @@ export default {
         loading.value = true
         error.value = ''
         
-        // 在实际项目中，这里应该调用后端API
-        // const response = await getReservationDetail(reservationId)
+        // 调用后端API获取预约详情
+        const response = await getReservationDetail(reservationId)
         
-        // 模拟API调用和数据
-        setTimeout(() => {
-          reservation.value = generateMockReservation(reservationId)
-          loading.value = false
-        }, 1000)
+        // 将后端数据转换为前端需要的格式
+        if (response) {
+          reservation.value = convertReservationData(response)
+        } else {
+          error.value = '未找到预约信息'
+        }
+        
+        loading.value = false
       } catch (err) {
         loading.value = false
-        error.value = '加载预约详情失败，请稍后重试'
+        error.value = err.message || '加载预约详情失败，请稍后重试'
         console.error('加载预约详情失败:', err)
       }
     }
     
-    // 生成模拟预约数据
-    const generateMockReservation = (id) => {
-      const now = new Date()
-      const tomorrow = new Date(now)
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      
-      // 模拟根据不同ID返回不同状态的预约
-      const mockReservations = {
-        '1': {
-          id: 1,
-          reservationNo: 'RES20241220083001',
-          parkingId: 1,
-          parkingName: '中央商场停车场',
-          parkingSpaceId: 101,
-          floorName: 'B1',
-          spaceNumber: 'A区12号',
-          status: 'PENDING',
-          refundStatus: null,
-          startTime: new Date(now.getTime() + 2 * 60 * 60 * 1000), // 2小时后
-          endTime: new Date(now.getTime() + 4 * 60 * 60 * 1000),   // 4小时后
-          actualEntryTime: null,
-          actualExitTime: null,
-          plateNumber: '京A12345',
-          contactPhone: '13800138000',
-          vehicleInfo: '小型轿车',
-          remark: '',
-          createdAt: new Date()
-        },
-        '2': {
-          id: 2,
-          reservationNo: 'RES20241219142533',
-          parkingId: 2,
-          parkingName: '科技园停车场',
-          parkingSpaceId: 205,
-          floorName: 'B2',
-          spaceNumber: 'C区08号',
-          status: 'USED',
-          refundStatus: null,
-          startTime: new Date(now.getTime() - 48 * 60 * 60 * 1000), // 2天前
-          endTime: new Date(now.getTime() - 45 * 60 * 60 * 1000),   // 45小时前
-          actualEntryTime: new Date(now.getTime() - 48 * 60 * 60 * 1000),
-          actualExitTime: new Date(now.getTime() - 45 * 60 * 60 * 1000),
-          plateNumber: '京B54321',
-          contactPhone: '13800138000',
-          vehicleInfo: '小型SUV',
-          remark: '',
-          createdAt: new Date(now.getTime() - 49 * 60 * 60 * 1000)
-        },
-        '3': {
-          id: 3,
-          reservationNo: 'RES20241218091576',
-          parkingId: 3,
-          parkingName: '环球影城停车场',
-          parkingSpaceId: 312,
-          floorName: 'B1',
-          spaceNumber: 'E区25号',
-          status: 'CANCELLED',
-          refundStatus: null,
-          startTime: new Date(now.getTime() - 72 * 60 * 60 * 1000), // 3天前
-          endTime: new Date(now.getTime() - 69 * 60 * 60 * 1000),   // 69小时前
-          actualEntryTime: null,
-          actualExitTime: null,
-          plateNumber: '京A12345',
-          contactPhone: '13800138000',
-          vehicleInfo: '小型轿车',
-          remark: '临时有事取消',
-          createdAt: new Date(now.getTime() - 73 * 60 * 60 * 1000)
-        }
+    // 将后端返回的数据转换为前端需要的格式
+    const convertReservationData = (data) => {
+      // 状态码转换：0-PENDING, 1-USED, 2-CANCELLED, 3-TIMEOUT
+      const statusMap = {
+        0: 'PENDING',
+        1: 'USED',
+        2: 'CANCELLED',
+        3: 'TIMEOUT'
       }
       
-      return mockReservations[id] || mockReservations['1']
+      // 将parkingLotName映射为parkingName
+      const converted = {
+        ...data,
+        parkingName: data.parkingLotName || data.parkingName || '未知停车场',
+        status: statusMap[data.status] || 'PENDING',
+        // 从parkingSpace中提取floorName和spaceNumber
+        floorName: data.parkingSpace?.floor || data.floorName || '',
+        spaceNumber: data.parkingSpace?.spaceNumber || data.spaceNumber || '',
+        // 确保日期格式正确
+        startTime: data.startTime ? new Date(data.startTime) : null,
+        endTime: data.endTime ? new Date(data.endTime) : null,
+        actualEntryTime: data.actualEntryTime ? new Date(data.actualEntryTime) : null,
+        actualExitTime: data.actualExitTime ? new Date(data.actualExitTime) : null,
+        createdAt: data.createdAt ? new Date(data.createdAt) : new Date()
+      }
+      
+      return converted
     }
     
     // 获取状态样式类
@@ -417,19 +377,18 @@ export default {
       try {
         loading.value = true
         
-        // 在实际项目中，这里应该调用后端API
-        // const response = await cancelReservationById(reservation.value.id)
+        // 调用后端API取消预约
+        await cancelReservationById(reservation.value.id)
         
-        // 模拟API调用
-        setTimeout(() => {
-          reservation.value.status = 'CANCELLED'
-          showSuccessToast('预约已取消')
-          closeCancelConfirm()
-          loading.value = false
-        }, 1000)
+        // 重新加载预约详情以获取最新状态
+        await loadReservationDetail()
+        
+        showSuccessToast('预约已取消')
+        closeCancelConfirm()
+        loading.value = false
       } catch (err) {
         loading.value = false
-        showErrorToast('取消预约失败，请稍后重试')
+        showErrorToast(err.message || '取消预约失败，请稍后重试')
         console.error('取消预约失败:', err)
       }
     }

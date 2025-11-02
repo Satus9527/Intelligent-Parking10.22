@@ -3,6 +3,7 @@ package com.parking.model.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -18,7 +19,11 @@ public class ParkingSpaceEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     
+    @TableField("space_number")
     private String spaceNumber; // 车位编号
+    
+    // 停车场ID字段：明确映射到parking_id，避免MyBatis-Plus自动SQL生成使用错误的字段名
+    @TableField("parking_id")
     private Long parkingId;
     private String status; // 兼容现有状态：AVAILABLE, OCCUPIED, RESERVED
     private String type; // SMALL, MEDIUM, LARGE

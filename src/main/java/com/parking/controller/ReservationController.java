@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 预约管理控制器
@@ -39,11 +41,48 @@ public class ReservationController {
      * @return 操作结果
      */
     @PostMapping("/{id}/cancel")
-    public ResponseEntity<Boolean> cancelReservation(@PathVariable Long id) {
-        // 从请求上下文获取用户ID
-        Long userId = 1L; // 临时硬编码
-        boolean result = reservationService.cancelReservation(id, userId);
-        return ResponseEntity.ok(result);
+    public ResponseEntity<Map<String, Object>> cancelReservation(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            System.out.println("Controller: 收到取消预约请求，ID: " + id);
+            
+            // 从请求上下文获取用户ID
+            Long userId = 1L; // 临时硬编码
+            System.out.println("Controller: 使用用户ID: " + userId);
+            
+            boolean result = reservationService.cancelReservation(id, userId);
+            System.out.println("Controller: 服务返回结果: " + result);
+            
+            if (result) {
+                response.put("success", true);
+                response.put("message", "取消预约成功");
+                response.put("data", true);
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("success", false);
+                response.put("message", "取消预约失败：预约不存在或无法取消");
+                response.put("data", null);
+                return ResponseEntity.badRequest().body(response);
+            }
+        } catch (RuntimeException e) {
+            System.err.println("Controller: RuntimeException - " + e.getMessage());
+            e.printStackTrace();
+            // 捕获业务异常并返回友好的错误信息
+            response.put("success", false);
+            response.put("message", "取消预约失败：" + e.getMessage());
+            response.put("data", null);
+            response.put("code", 500);
+            return ResponseEntity.status(500).body(response);
+        } catch (Exception e) {
+            System.err.println("Controller: Exception - " + e.getClass().getName() + ": " + e.getMessage());
+            e.printStackTrace();
+            // 捕获其他异常
+            response.put("success", false);
+            response.put("message", "取消预约失败：系统内部错误 - " + e.getMessage());
+            response.put("data", null);
+            response.put("code", 500);
+            return ResponseEntity.status(500).body(response);
+        }
     }
     
     /**

@@ -103,4 +103,19 @@ public class ReservationDTO {
      * 用户信息
      */
     private UserDTO user;
+    
+    /**
+     * 停车场名称
+     */
+    private String parkingLotName;
+    
+    /**
+     * 停车场地址
+     */
+    private String parkingLotAddress;
+    
+    /**
+     * 停车场小时费率
+     */
+    private Double parkingLotHourlyRate;
 }

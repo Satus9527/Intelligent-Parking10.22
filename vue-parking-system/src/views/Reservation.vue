@@ -291,36 +291,127 @@ export default {
       try {
         loading.value = true
         
-        // 在实际项目中，这里应该调用后端API
-        // const response = await createReservation(reservationForm)
+        // 将ID转换为数字类型
+        const convertedParkingSpaceId = convertToNumber(reservationForm.parkingSpaceId)
+        const convertedParkingId = convertToNumber(reservationForm.parkingId)
+        const convertedSpaceId = convertToNumber(reservationForm.spaceId)
         
-        // 模拟API调用成功
-        setTimeout(() => {
-          loading.value = false
-          showSuccessToast('预约成功！')
-          
-          // 生成模拟的预约编号
-          const reservationNo = 'RES' + Date.now()
-          
-          // 跳转到预约成功页面或预约列表
-          router.push({
-            path: '/reservation-success',
-            query: {
-              parkingName: parkingName.value,
-              spaceNumber: spaceNumber.value,
-              floorName: floorName.value,
-              startTime: reservationForm.startTime,
-              endTime: reservationForm.endTime,
-              reservationNo: reservationNo,
-              totalFee: calculatedFee.value
-            }
-          })
-        }, 1500)
+        // 打印调试信息
+        console.log('========== 预约提交调试信息 ==========')
+        console.log('原始数据:', {
+          parkingSpaceId: reservationForm.parkingSpaceId,
+          parkingId: reservationForm.parkingId,
+          spaceId: reservationForm.spaceId
+        })
+        console.log('转换后数据:', {
+          parkingSpaceId: convertedParkingSpaceId,
+          parkingId: convertedParkingId,
+          spaceId: convertedSpaceId
+        })
+        
+        // 验证ID转换是否成功
+        if (!convertedParkingSpaceId || !convertedParkingId) {
+          const errorMsg = `车位ID或停车场ID无效。车位ID: ${convertedParkingSpaceId}, 停车场ID: ${convertedParkingId}`
+          console.error(errorMsg)
+          throw new Error(errorMsg)
+        }
+        
+        // 准备提交的数据
+        const submitData = {
+          plateNumber: reservationForm.plateNumber,
+          contactPhone: reservationForm.contactPhone,
+          vehicleInfo: reservationForm.vehicleInfo || '',
+          remark: reservationForm.remark || '',
+          parkingSpaceId: convertedParkingSpaceId,
+          parkingId: convertedParkingId,
+          spaceId: convertedSpaceId, // 兼容后端参数名
+          // 确保时间格式正确（转换为ISO字符串，后端会自动解析为Date）
+          startTime: new Date(reservationForm.startTime).toISOString(),
+          endTime: new Date(reservationForm.endTime).toISOString()
+        }
+        
+        console.log('提交数据:', submitData)
+        console.log('==================================')
+        
+        // 调用后端API创建预约
+        const response = await createReservation(submitData)
+        
+        loading.value = false
+        showSuccessToast('预约成功！')
+        
+        // 跳转到预约成功页面
+        router.push({
+          path: '/reservation-success',
+          query: {
+            parkingName: parkingName.value,
+            spaceNumber: spaceNumber.value,
+            floorName: floorName.value,
+            startTime: reservationForm.startTime,
+            endTime: reservationForm.endTime,
+            reservationNo: response.reservationNo || 'RES' + Date.now(),
+            totalFee: calculatedFee.value
+          }
+        })
       } catch (error) {
         loading.value = false
-        showErrorToast(error.message || '预约失败，请稍后重试')
-        console.error('预约失败:', error)
+        // 提取更详细的错误信息
+        let errorMessage = '预约失败，请稍后重试'
+        if (error.message) {
+          errorMessage = error.message
+        } else if (error.data?.message) {
+          errorMessage = error.data.message
+        } else if (typeof error === 'string') {
+          errorMessage = error
+        }
+        
+        console.error('预约失败详情:', {
+          error,
+          message: errorMessage,
+          statusCode: error.statusCode,
+          data: error.data,
+          originalError: error.originalError
+        })
+        
+        showErrorToast(errorMessage)
       }
+    }
+    
+    // 辅助函数：将字符串ID转换为数字
+    const convertToNumber = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return null
+      }
+      // 如果是数字，直接返回
+      if (typeof value === 'number') {
+        return value
+      }
+      // 如果是字符串，尝试转换为数字
+      if (typeof value === 'string') {
+        // 如果字符串是纯数字，直接转换
+        const num = Number(value)
+        if (!isNaN(num) && isFinite(num)) {
+          return num
+        }
+        // 如果字符串包含非数字字符（如 "gz_005_space_2_D2_1"），尝试提取数字部分
+        // 提取所有数字
+        const numbers = value.match(/\d+/g)
+        if (numbers && numbers.length > 0) {
+          // 优先使用较长的数字（可能是完整ID）
+          const sortedNumbers = numbers
+            .map(n => Number(n))
+            .filter(n => n > 0 && n < 999999)
+            .sort((a, b) => b - a) // 从大到小排序
+          if (sortedNumbers.length > 0) {
+            // 如果有多个数字，尝试组合或使用最大的
+            // 对于类似 "gz_005_space_2_D2_1" 的字符串，可能需要其他逻辑
+            // 这里先返回最大的有效数字
+            return sortedNumbers[0]
+          }
+        }
+      }
+      // 如果无法转换，返回null
+      console.warn('无法将ID转换为数字:', value)
+      return null
     }
     
     // 返回上一页

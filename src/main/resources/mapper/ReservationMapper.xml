@@ -58,11 +58,6 @@
         SELECT COUNT(*) FROM reservation 
         WHERE parking_space_id = #{parkingSpaceId}
         AND status = 0
-        ]]>
-        <if test="excludeId != null">
-            <![CDATA[ AND id != #{excludeId}]]>
-        </if>
-        <![CDATA[
         AND (
             (start_time < #{endTime} AND end_time > #{startTime})
         )
@@ -106,5 +101,23 @@
     <select id="selectByReservationNo" parameterType="java.lang.String" resultType="com.parking.model.entity.ReservationEntity">
         SELECT * FROM reservation 
         WHERE reservation_no = #{reservationNo}
+    </select>
+    
+    <!-- 查询停车场信息 -->
+    <select id="selectParkingLotInfo" parameterType="java.lang.Long" resultType="java.util.HashMap">
+        SELECT 
+            id,
+            name,
+            address,
+            hourly_rate,
+            total_spaces,
+            available_spaces,
+            status,
+            operating_hours,
+            longitude,
+            latitude
+        FROM parking_lot
+        WHERE id = #{parkingId}
+        LIMIT 1
     </select>
 </mapper>

@@ -1,11 +1,12 @@
 @echo off
+chcp 65001 >nul
 set APP_ENV=dev
-set DB_URL=jdbc:mysql://localhost:3306/parking_db?useUnicode=true^&characterEncoding=utf8^&serverTimezone=Asia/Shanghai^&useSSL=false
-set DB_USERNAME=root
-set DB_PASSWORD=root
-set REDIS_HOST=localhost
-set REDIS_PORT=6379
-set REDIS_TIMEOUT=3000
+set spring.datasource.url=jdbc:mysql://localhost:3306/parking_db?useUnicode=true^&characterEncoding=utf8^&serverTimezone=Asia/Shanghai^&useSSL=false^&allowPublicKeyRetrieval=true
+set spring.datasource.username=root
+set spring.datasource.password=123
+set spring.redis.host=localhost
+set spring.redis.port=6379
+set spring.redis.timeout=3000
 set jwt.secret=test_jwt_secret_key
 set jwt.expiration=3600
 set AMAP_API_KEY=test_api_key
