@@ -26,4 +26,11 @@ public interface ParkingService {
      * @return 停车场列表
      */
     ResultDTO getNearbyParkings(Double longitude, Double latitude, Integer radius);
+    
+    /**
+     * 搜索停车场（根据名称或地址）
+     * @param keyword 搜索关键词
+     * @return 停车场列表
+     */
+    ResultDTO searchParkings(String keyword);
 }

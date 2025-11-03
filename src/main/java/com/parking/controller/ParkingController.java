@@ -89,4 +89,12 @@ public class ParkingController {
     public ResultDTO getParkingSpace(@PathVariable Long spaceId) {
         return parkingService.getParkingSpace(spaceId);
     }
+    
+    /**
+     * 搜索停车场（根据名称或地址）
+     */
+    @GetMapping("/search")
+    public ResultDTO searchParkings(@RequestParam String keyword) {
+        return parkingService.searchParkings(keyword);
+    }
 }

@@ -118,4 +118,14 @@ public class ReservationDTO {
      * 停车场小时费率
      */
     private Double parkingLotHourlyRate;
+    
+    /**
+     * 车牌号
+     */
+    private String plateNumber;
+    
+    /**
+     * 联系电话
+     */
+    private String contactPhone;
 }

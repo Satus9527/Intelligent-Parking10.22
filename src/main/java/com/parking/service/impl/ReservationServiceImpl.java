@@ -444,62 +444,153 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     
     @Override
     public ReservationDTO getReservationById(Long id) {
-        ReservationEntity entity = this.getById(id);
-        if (entity == null) {
-            return null;
-        }
-        
-        ReservationDTO dto = convertToDTO(entity);
-        
-        // 加载关联数据 - 车位信息
-        ParkingSpaceEntity parkingSpace = parkingSpaceMapper.selectById(entity.getParkingSpaceId());
-        if (parkingSpace != null) {
-            ParkingSpaceDTO parkingSpaceDTO = new ParkingSpaceDTO();
-            BeanUtils.copyProperties(parkingSpace, parkingSpaceDTO);
-            dto.setParkingSpace(parkingSpaceDTO);
-        }
-        
-        // 加载停车场信息
-        if (entity.getParkingId() != null) {
-            try {
-                // 使用Mapper查询停车场信息
-                Map<String, Object> parkingLotInfo = reservationMapper.selectParkingLotInfo(entity.getParkingId());
-                if (parkingLotInfo != null && !parkingLotInfo.isEmpty()) {
-                    // 将停车场信息添加到DTO中
-                    Object nameObj = parkingLotInfo.get("name");
-                    Object addressObj = parkingLotInfo.get("address");
-                    Object hourlyRateObj = parkingLotInfo.get("hourly_rate");
-                    
-                    dto.setParkingLotName(nameObj != null ? nameObj.toString() : null);
-                    dto.setParkingLotAddress(addressObj != null ? addressObj.toString() : null);
-                    
-                    if (hourlyRateObj != null) {
-                        if (hourlyRateObj instanceof Number) {
-                            dto.setParkingLotHourlyRate(((Number) hourlyRateObj).doubleValue());
-                        } else if (hourlyRateObj instanceof String) {
-                            try {
-                                dto.setParkingLotHourlyRate(Double.parseDouble((String) hourlyRateObj));
-                            } catch (NumberFormatException e) {
-                                System.err.println("解析小时费率失败: " + hourlyRateObj);
+        try {
+            ReservationEntity entity = this.getById(id);
+            if (entity == null) {
+                System.out.println("预约不存在，ID: " + id);
+                return null;
+            }
+            
+            ReservationDTO dto = convertToDTO(entity);
+            if (dto == null) {
+                System.err.println("转换DTO失败，entity: " + entity);
+                return null;
+            }
+            
+            // 加载关联数据 - 车位信息
+            if (entity.getParkingSpaceId() != null) {
+                try {
+                    ParkingSpaceEntity parkingSpace = parkingSpaceMapper.selectById(entity.getParkingSpaceId());
+                    if (parkingSpace != null) {
+                        ParkingSpaceDTO parkingSpaceDTO = new ParkingSpaceDTO();
+                        BeanUtils.copyProperties(parkingSpace, parkingSpaceDTO);
+                        dto.setParkingSpace(parkingSpaceDTO);
+                    }
+                } catch (Exception e) {
+                    System.err.println("加载车位信息失败: " + e.getMessage());
+                    e.printStackTrace();
+                    // 不阻止返回，继续执行
+                }
+            }
+            
+            // 加载停车场信息
+            if (entity.getParkingId() != null) {
+                try {
+                    // 使用Mapper查询停车场信息
+                    Map<String, Object> parkingLotInfo = reservationMapper.selectParkingLotInfo(entity.getParkingId());
+                    if (parkingLotInfo != null && !parkingLotInfo.isEmpty()) {
+                        // 将停车场信息添加到DTO中
+                        Object nameObj = parkingLotInfo.get("name");
+                        Object addressObj = parkingLotInfo.get("address");
+                        Object hourlyRateObj = parkingLotInfo.get("hourly_rate");
+                        
+                        dto.setParkingLotName(nameObj != null ? nameObj.toString() : null);
+                        dto.setParkingLotAddress(addressObj != null ? addressObj.toString() : null);
+                        
+                        if (hourlyRateObj != null) {
+                            if (hourlyRateObj instanceof Number) {
+                                dto.setParkingLotHourlyRate(((Number) hourlyRateObj).doubleValue());
+                            } else if (hourlyRateObj instanceof String) {
+                                try {
+                                    dto.setParkingLotHourlyRate(Double.parseDouble((String) hourlyRateObj));
+                                } catch (NumberFormatException e) {
+                                    System.err.println("解析小时费率失败: " + hourlyRateObj);
+                                }
                             }
                         }
+                    } else {
+                        System.out.println("警告：停车场ID=" + entity.getParkingId() + " 的停车场信息未找到");
                     }
-                } else {
-                    System.out.println("警告：停车场ID=" + entity.getParkingId() + " 的停车场信息未找到");
+                } catch (Exception e) {
+                    System.err.println("加载停车场信息失败: " + e.getMessage());
+                    e.printStackTrace();
+                    // 不阻止返回，继续执行
                 }
-            } catch (Exception e) {
-                System.err.println("加载停车场信息失败: " + e.getMessage());
-                e.printStackTrace();
             }
+            
+            return dto;
+        } catch (Exception e) {
+            System.err.println("获取预约详情异常: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("获取预约详情失败: " + e.getMessage(), e);
         }
-        
-        return dto;
     }
     
     @Override
     public List<ReservationDTO> getUserReservations(Long userId, Integer pageNum, Integer pageSize) {
-        List<ReservationEntity> entities = reservationMapper.selectByUserId(userId, pageNum, pageSize);
-        return entities.stream().map(this::convertToDTO).collect(Collectors.toList());
+        try {
+            List<ReservationEntity> entities = reservationMapper.selectByUserId(userId, pageNum, pageSize);
+            if (entities == null || entities.isEmpty()) {
+                return new java.util.ArrayList<>();
+            }
+            
+            return entities.stream()
+                .map(entity -> {
+                    try {
+                        ReservationDTO dto = convertToDTO(entity);
+                        if (dto == null) {
+                            return null;
+                        }
+                        
+                        // 加载关联数据 - 车位信息
+                        if (entity.getParkingSpaceId() != null) {
+                            try {
+                                ParkingSpaceEntity parkingSpace = parkingSpaceMapper.selectById(entity.getParkingSpaceId());
+                                if (parkingSpace != null) {
+                                    ParkingSpaceDTO parkingSpaceDTO = new ParkingSpaceDTO();
+                                    BeanUtils.copyProperties(parkingSpace, parkingSpaceDTO);
+                                    dto.setParkingSpace(parkingSpaceDTO);
+                                }
+                            } catch (Exception e) {
+                                System.err.println("加载车位信息失败，预约ID: " + entity.getId() + ", 错误: " + e.getMessage());
+                                // 不阻止返回，继续执行
+                            }
+                        }
+                        
+                        // 加载停车场信息
+                        if (entity.getParkingId() != null) {
+                            try {
+                                Map<String, Object> parkingLotInfo = reservationMapper.selectParkingLotInfo(entity.getParkingId());
+                                if (parkingLotInfo != null && !parkingLotInfo.isEmpty()) {
+                                    Object nameObj = parkingLotInfo.get("name");
+                                    Object addressObj = parkingLotInfo.get("address");
+                                    Object hourlyRateObj = parkingLotInfo.get("hourly_rate");
+                                    
+                                    dto.setParkingLotName(nameObj != null ? nameObj.toString() : null);
+                                    dto.setParkingLotAddress(addressObj != null ? addressObj.toString() : null);
+                                    
+                                    if (hourlyRateObj != null) {
+                                        if (hourlyRateObj instanceof Number) {
+                                            dto.setParkingLotHourlyRate(((Number) hourlyRateObj).doubleValue());
+                                        } else if (hourlyRateObj instanceof String) {
+                                            try {
+                                                dto.setParkingLotHourlyRate(Double.parseDouble((String) hourlyRateObj));
+                                            } catch (NumberFormatException e) {
+                                                System.err.println("解析小时费率失败: " + hourlyRateObj);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Exception e) {
+                                System.err.println("加载停车场信息失败，预约ID: " + entity.getId() + ", 错误: " + e.getMessage());
+                                // 不阻止返回，继续执行
+                            }
+                        }
+                        
+                        return dto;
+                    } catch (Exception e) {
+                        System.err.println("转换预约DTO失败，预约ID: " + (entity != null ? entity.getId() : "null") + ", 错误: " + e.getMessage());
+                        e.printStackTrace();
+                        return null;
+                    }
+                })
+                .filter(dto -> dto != null)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("获取用户预约列表异常: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("获取用户预约列表失败: " + e.getMessage(), e);
+        }
     }
     
     @Override
@@ -618,27 +709,43 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
             return null;
         }
         
-        ReservationDTO dto = new ReservationDTO();
-        BeanUtils.copyProperties(entity, dto);
-        
-        // 设置状态描述
-        for (ReservationEntity.ReservationStatus status : ReservationEntity.ReservationStatus.values()) {
-            if (status.getCode() == entity.getStatus()) {
-                dto.setStatusDesc(status.getDesc());
-                break;
+        try {
+            ReservationDTO dto = new ReservationDTO();
+            BeanUtils.copyProperties(entity, dto);
+            
+            // 确保关键字段被正确复制
+            if (entity.getPlateNumber() != null) {
+                dto.setPlateNumber(entity.getPlateNumber());
             }
-        }
-        
-        // 设置退款状态描述
-        if (entity.getRefundStatus() != null) {
-            for (ReservationEntity.RefundStatus refundStatus : ReservationEntity.RefundStatus.values()) {
-                if (refundStatus.getCode() == entity.getRefundStatus()) {
-                    dto.setRefundStatusDesc(refundStatus.getDesc());
-                    break;
+            if (entity.getContactPhone() != null) {
+                dto.setContactPhone(entity.getContactPhone());
+            }
+            
+            // 设置状态描述
+            if (entity.getStatus() != null) {
+                for (ReservationEntity.ReservationStatus status : ReservationEntity.ReservationStatus.values()) {
+                    if (status.getCode() == entity.getStatus()) {
+                        dto.setStatusDesc(status.getDesc());
+                        break;
+                    }
                 }
             }
+            
+            // 设置退款状态描述
+            if (entity.getRefundStatus() != null) {
+                for (ReservationEntity.RefundStatus refundStatus : ReservationEntity.RefundStatus.values()) {
+                    if (refundStatus.getCode() == entity.getRefundStatus()) {
+                        dto.setRefundStatusDesc(refundStatus.getDesc());
+                        break;
+                    }
+                }
+            }
+            
+            return dto;
+        } catch (Exception e) {
+            System.err.println("转换ReservationDTO异常: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("转换预约DTO失败: " + e.getMessage(), e);
         }
-        
-        return dto;
     }
 }

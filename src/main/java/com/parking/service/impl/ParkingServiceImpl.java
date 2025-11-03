@@ -195,4 +195,53 @@ public class ParkingServiceImpl implements ParkingService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     }
+    
+    @Override
+    public ResultDTO searchParkings(String keyword) {
+        try {
+            // 参数验证
+            if (keyword == null || keyword.trim().isEmpty()) {
+                return ResultDTO.fail("搜索关键词不能为空");
+            }
+            
+            String trimmedKeyword = keyword.trim();
+            if (trimmedKeyword.length() < 1) {
+                return ResultDTO.fail("搜索关键词至少需要1个字符");
+            }
+            
+            // 查询数据库
+            List<Map<String, Object>> parkings;
+            try {
+                parkings = reservationMapper.searchParkingLots(trimmedKeyword);
+                System.out.println("搜索关键词: " + trimmedKeyword + ", 找到 " + (parkings != null ? parkings.size() : 0) + " 个停车场");
+            } catch (Exception e) {
+                System.err.println("搜索停车场失败: " + e.getMessage());
+                e.printStackTrace();
+                return ResultDTO.fail("搜索停车场失败: " + e.getMessage());
+            }
+            
+            if (parkings == null) {
+                parkings = new java.util.ArrayList<>();
+            }
+            
+            // 处理数据格式
+            for (Map<String, Object> parking : parkings) {
+                // 确保ID是数字类型
+                Object idObj = parking.get("id");
+                if (idObj != null && !(idObj instanceof Number)) {
+                    try {
+                        parking.put("id", Long.parseLong(String.valueOf(idObj)));
+                    } catch (NumberFormatException e) {
+                        System.err.println("无效的停车场ID: " + idObj);
+                    }
+                }
+            }
+            
+            return ResultDTO.success(parkings);
+        } catch (Exception e) {
+            System.err.println("搜索停车场异常: " + e.getMessage());
+            e.printStackTrace();
+            return ResultDTO.fail("搜索停车场失败，请稍后重试：" + e.getMessage());
+        }
+    }
 }

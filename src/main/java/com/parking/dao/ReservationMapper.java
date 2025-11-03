@@ -93,4 +93,11 @@ public interface ReservationMapper extends BaseMapper<ReservationEntity> {
      * @return 停车场列表
      */
     List<java.util.Map<String, Object>> selectAllParkingLots();
+    
+    /**
+     * 搜索停车场（根据名称或地址）
+     * @param keyword 搜索关键词
+     * @return 停车场列表
+     */
+    List<java.util.Map<String, Object>> searchParkingLots(@Param("keyword") String keyword);
 }

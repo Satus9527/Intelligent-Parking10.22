@@ -135,7 +135,29 @@
             longitude,
             latitude
         FROM parking_lot
-        WHERE (status = 'open' OR status IS NULL OR status = '')
+        WHERE (status = 'open' OR status = 'OPEN' OR status = 1 OR status IS NULL OR status = '')
+        ORDER BY id ASC
+    </select>
+    
+    <!-- 搜索停车场（根据名称或地址） -->
+    <select id="searchParkingLots" resultType="java.util.HashMap">
+        SELECT 
+            id,
+            name,
+            address,
+            hourly_rate AS hourlyRate,
+            total_spaces AS totalSpaces,
+            available_spaces AS availableSpaces,
+            status,
+            operating_hours AS operatingHours,
+            longitude,
+            latitude
+        FROM parking_lot
+        WHERE (status = 'open' OR status = 'OPEN' OR status = 1 OR status IS NULL OR status = '')
+        AND (
+            name LIKE CONCAT('%', #{keyword}, '%')
+            OR address LIKE CONCAT('%', #{keyword}, '%')
+        )
         ORDER BY id ASC
     </select>
 </mapper>
