@@ -1,6 +1,7 @@
 package com.parking.model.vo;
 
 import lombok.Data;
+import java.util.Map;
 
 /**
  * 语音指令处理结果
@@ -29,16 +30,14 @@ public class VoiceCommandResult {
     private Object data;
     
     /**
-     * 后续动作（前端可据此执行跳转等操作）
-     * 例如："NAVIGATE_TO_PARKING_LIST", "NAVIGATE_TO_RESERVATION", "SHOW_PARKING_DETAIL"
+     * 后续动作指令（例如 "NAV_TO_RESERVATION_FORM"）
      */
     private String followUpAction;
     
     /**
-     * 预填充数据（用于后续页面）
-     * 例如：预约页面需要预填充的停车场ID、地点名称等
+     * 用于后续动作的预填数据
      */
-    private Object prefillData;
+    private Map<String, Object> prefillData;
     
     /**
      * 创建成功响应
@@ -55,13 +54,12 @@ public class VoiceCommandResult {
     /**
      * 创建带后续动作的成功响应
      */
-    public static VoiceCommandResult successWithFollowUp(String message, String commandType, Object data, 
-                                                         String followUpAction, Object prefillData) {
+    public static VoiceCommandResult successWithFollowUp(String message, String commandType, 
+                                                         String followUpAction, Map<String, Object> prefillData) {
         VoiceCommandResult result = new VoiceCommandResult();
         result.setStatus("success");
         result.setMessage(message);
         result.setCommandType(commandType);
-        result.setData(data);
         result.setFollowUpAction(followUpAction);
         result.setPrefillData(prefillData);
         return result;
