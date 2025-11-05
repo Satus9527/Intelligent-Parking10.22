@@ -39,21 +39,28 @@ public class ChatServiceImpl implements ChatService {
             .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
             .build();
 
-    // NLU 指令提示词
+    // NLU 指令提示词（返回JSON格式）
     private static final String NLU_PROMPT = "你是一个智能停车场助手。请分析用户的语音指令，判断用户意图。\n" +
             "可能的意图类型：\n" +
             "1. RESERVE_NEARBY - 用户想预约附近某个地点的停车场（如\"预约北京路附近的停车场\"）\n" +
             "2. RESERVE_SPACE - 用户想预约特定车位（如\"预约A101车位\"）\n" +
-            "3. QUERY_NEARBY - 用户想查询附近停车场（如\"附近有什么停车场\"）\n" +
+            "3. FIND_NEARBY - 用户想查找附近停车场（如\"附近有什么停车场\"、\"查找天河区的停车场\"）\n" +
             "4. NAVIGATE - 用户想导航到某个地点（如\"导航到北京路\"）\n" +
             "5. CANCEL_RESERVATION - 用户想取消预约\n" +
             "6. QUERY_STATUS - 用户想查询预约状态\n" +
             "7. UNKNOWN - 无法识别或普通聊天\n\n" +
-            "请只返回意图类型（如 RESERVE_NEARBY），如果是指令类型1（RESERVE_NEARBY），请额外提取地点名称（如\"北京路\"）。\n" +
-            "格式：意图类型|地点名称（如果适用）\n" +
-            "例如：\"预约北京路附近的停车场\" -> RESERVE_NEARBY|北京路\n" +
-            "\"附近有什么停车场\" -> QUERY_NEARBY|\n" +
-            "\"你好\" -> UNKNOWN|";
+            "请以JSON格式返回结果，格式如下：\n" +
+            "{\n" +
+            "  \"intent\": \"意图类型（如RESERVE_NEARBY）\",\n" +
+            "  \"entities\": {\n" +
+            "    \"destination\": \"地点名称（如北京路，如果适用）\",\n" +
+            "    \"parkingLotName\": \"停车场名称（如果适用）\"\n" +
+            "  }\n" +
+            "}\n" +
+            "例如：\n" +
+            "用户说\"预约北京路附近的停车场\" -> {\"intent\":\"RESERVE_NEARBY\",\"entities\":{\"destination\":\"北京路\"}}\n" +
+            "用户说\"附近有什么停车场\" -> {\"intent\":\"FIND_NEARBY\",\"entities\":{}}\n" +
+            "用户说\"你好\" -> {\"intent\":\"UNKNOWN\",\"entities\":{}}";
 
     // 聊天模式提示词
     private static final String CHAT_PROMPT = "你是一个智能停车场助手，名字叫小智。你友好、专业，可以帮助用户预约停车位、查询附近停车场、导航等功能。请用简洁、友好的方式回复用户。";
@@ -64,24 +71,42 @@ public class ChatServiceImpl implements ChatService {
             String response = callSparkAPI(text, NLU_PROMPT);
             
             if (response == null || response.trim().isEmpty()) {
-                return "UNKNOWN";
+                // 返回默认UNKNOWN的JSON
+                return "{\"intent\":\"UNKNOWN\",\"entities\":{}}";
             }
             
-            // 解析响应，提取意图类型
-            String[] parts = response.split("\\|");
-            String intent = parts[0].trim().toUpperCase();
-            
-            // 验证意图类型是否有效
-            if (intent.matches("(RESERVE_NEARBY|RESERVE_SPACE|QUERY_NEARBY|NAVIGATE|CANCEL_RESERVATION|QUERY_STATUS|UNKNOWN)")) {
-                return response.trim(); // 返回完整响应（包含地点信息）
-            } else {
-                return "UNKNOWN";
+            // 尝试解析JSON响应
+            try {
+                JsonObject json = gson.fromJson(response.trim(), JsonObject.class);
+                // 验证JSON格式是否正确
+                if (json.has("intent")) {
+                    return response.trim(); // 返回原始JSON
+                }
+            } catch (Exception jsonEx) {
+                // 如果不是JSON格式，尝试解析为旧格式（向后兼容）
+                System.out.println("NLU响应不是JSON格式，尝试解析为旧格式: " + response);
+                String[] parts = response.split("\\|");
+                String intent = parts[0].trim().toUpperCase();
+                String destination = parts.length > 1 ? parts[1].trim() : "";
+                
+                // 转换为JSON格式
+                JsonObject json = new JsonObject();
+                json.addProperty("intent", intent);
+                JsonObject entities = new JsonObject();
+                if (!destination.isEmpty()) {
+                    entities.addProperty("destination", destination);
+                }
+                json.add("entities", entities);
+                return gson.toJson(json);
             }
+            
+            // 如果都失败了，返回默认UNKNOWN
+            return "{\"intent\":\"UNKNOWN\",\"entities\":{}}";
             
         } catch (Exception e) {
             System.err.println("NLU处理异常: " + e.getMessage());
             e.printStackTrace();
-            return "UNKNOWN";
+            return "{\"intent\":\"UNKNOWN\",\"entities\":{}}";
         }
     }
 

@@ -66,6 +66,18 @@ public class VoiceCommandResult {
     }
     
     /**
+     * 创建聊天响应（用于聊天模式）
+     */
+    public static VoiceCommandResult successChat(String message, Object data) {
+        VoiceCommandResult result = new VoiceCommandResult();
+        result.setStatus("success");
+        result.setMessage(message);
+        result.setCommandType("chat");
+        result.setData(data);
+        return result;
+    }
+    
+    /**
      * 创建失败响应
      */
     public static VoiceCommandResult fail(String message) {

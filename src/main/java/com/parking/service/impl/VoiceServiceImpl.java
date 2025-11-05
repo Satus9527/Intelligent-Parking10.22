@@ -22,17 +22,14 @@ public class VoiceServiceImpl implements VoiceService {
     // 业务服务
     @Autowired
     private ParkingSpaceService parkingSpaceService;
-    
     @Autowired
     private ParkingService parkingService;
-    
     @Autowired
     private LocationService locationService;
     
     // AI 服务
     @Autowired
     private AmapService amapService;
-    
     @Autowired
     private ChatService chatService;
 
@@ -40,7 +37,6 @@ public class VoiceServiceImpl implements VoiceService {
     private final Gson gson = new Gson();
 
     // 指令类型常量
-    private static final String COMMAND_TYPE_CHAT = "chat";
     private static final String COMMAND_TYPE_RESERVE_NEARBY = "RESERVE_NEARBY";
     private static final String COMMAND_TYPE_FIND_NEARBY = "FIND_NEARBY";
     private static final String COMMAND_TYPE_UNKNOWN = "UNKNOWN";
@@ -54,35 +50,23 @@ public class VoiceServiceImpl implements VoiceService {
         String intent = COMMAND_TYPE_UNKNOWN;
         String destination = null;
         String parkingLotName = null;
-        
+
         try {
-            // 尝试解析 NLU JSON（如果返回的是JSON格式）
-            if (nluJsonResponse != null && nluJsonResponse.trim().startsWith("{")) {
-                JsonObject root = gson.fromJson(nluJsonResponse, JsonObject.class);
-                intent = root.has("intent") ? root.get("intent").getAsString() : COMMAND_TYPE_UNKNOWN;
-                
-                if (root.has("entities")) {
-                    JsonObject entities = root.getAsJsonObject("entities");
-                    
-                    if (entities.has("destination") && !entities.get("destination").isJsonNull()) {
-                        destination = entities.get("destination").getAsString();
-                    }
-                    if (entities.has("parkingLotName") && !entities.get("parkingLotName").isJsonNull()) {
-                        parkingLotName = entities.get("parkingLotName").getAsString();
-                    }
+            // 解析 NLU JSON
+            JsonObject root = gson.fromJson(nluJsonResponse, JsonObject.class);
+            intent = root.get("intent").getAsString();
+            JsonObject entities = root.getAsJsonObject("entities");
+            
+            if (entities != null) {
+                if (entities.has("destination") && !entities.get("destination").isJsonNull()) {
+                    destination = entities.get("destination").getAsString();
                 }
-            } else {
-                // 如果返回的是字符串格式 "RESERVE_NEARBY|北京路"，解析它
-                if (nluJsonResponse != null && !nluJsonResponse.trim().isEmpty()) {
-                    String[] parts = nluJsonResponse.split("\\|");
-                    intent = parts[0].trim().toUpperCase();
-                    if (parts.length > 1 && !parts[1].trim().isEmpty()) {
-                        destination = parts[1].trim();
-                    }
+                if (entities.has("parkingLotName") && !entities.get("parkingLotName").isJsonNull()) {
+                    parkingLotName = entities.get("parkingLotName").getAsString();
                 }
             }
         } catch (Exception e) {
-            System.err.println("NLU 响应解析失败: " + nluJsonResponse);
+            System.err.println("NLU JSON 解析失败: " + nluJsonResponse);
             e.printStackTrace();
             // 保持 intent 为 UNKNOWN，进入聊天模式
         }
@@ -93,7 +77,6 @@ public class VoiceServiceImpl implements VoiceService {
                 // 执行"一句话预约"
                 return handleReserveNearbyCommand(destination, userId);
                 
-            case "QUERY_NEARBY":
             case COMMAND_TYPE_FIND_NEARBY:
                 // 执行"查找附近" (可以是基于地理位置或停车场名称)
                 if (parkingLotName != null) {
@@ -102,13 +85,13 @@ public class VoiceServiceImpl implements VoiceService {
                 } else {
                     return handleNearbyCommand(userId); // 复用旧的"附近车位"
                 }
-                
+
             case COMMAND_TYPE_UNKNOWN:
             default:
                 // 步骤 3: 转入聊天模式 (指令2)
                 try {
                     String chatResponse = chatService.getChatResponse(voiceCommand);
-                    return VoiceCommandResult.success(chatResponse, COMMAND_TYPE_CHAT, null);
+                    return VoiceCommandResult.successChat(chatResponse, null);
                 } catch (Exception e) {
                     e.printStackTrace();
                     return VoiceCommandResult.fail("抱歉，我现在有点忙，您可以换个问题吗？");
@@ -125,7 +108,6 @@ public class VoiceServiceImpl implements VoiceService {
             if (destination == null || destination.isEmpty()) {
                 return VoiceCommandResult.fail("请告诉我您的目的地，例如'北京路'。");
             }
-
             Map<String, Double> coords = amapService.geocode(destination);
             if (coords == null) {
                 return VoiceCommandResult.fail("抱歉，我找不到 '" + destination + "' 的位置。");
@@ -161,11 +143,9 @@ public class VoiceServiceImpl implements VoiceService {
                     prefillData.put("spaceId", firstSpace.getId());
                     prefillData.put("parkingName", parkingName);
                     prefillData.put("spaceNumber", firstSpace.getSpaceNumber());
-                    prefillData.put("floorName", firstSpace.getFloor() != null ? firstSpace.getFloor() : "");
-                    
-                    String message = "已为您在 " + destination + " 附近找到停车场【" + parkingName + "】，并锁定空闲车位【" + 
-                                   (firstSpace.getFloor() != null ? firstSpace.getFloor() + "-" : "") + 
-                                   firstSpace.getSpaceNumber() + "】。请完善预约信息。";
+                    prefillData.put("floorName", firstSpace.getFloor());
+
+                    String message = "已为您在 " + destination + " 附近找到停车场【" + parkingName + "】，并锁定空闲车位【" + firstSpace.getFloor() + "-" + firstSpace.getSpaceNumber() + "】。请完善预约信息。";
                     
                     return VoiceCommandResult.successWithFollowUp(
                         message, 
@@ -178,7 +158,7 @@ public class VoiceServiceImpl implements VoiceService {
             
             // 循环结束，没有找到任何空车位
             return VoiceCommandResult.fail("抱歉，" + destination + " 附近的所有停车场均已满位。");
-            
+
         } catch (Exception e) {
             e.printStackTrace();
             return VoiceCommandResult.fail("处理预约时发生内部错误：" + e.getMessage());
@@ -197,21 +177,15 @@ public class VoiceServiceImpl implements VoiceService {
     private VoiceCommandResult handleNearbyCommand(Long userId) {
         try {
             Map<String, Double> location = locationService.getUserLocation(userId);
-            if (location == null) {
-                return VoiceCommandResult.fail("无法获取您的位置信息，请检查位置权限。");
+            if (location == null || location.get("longitude") == null || location.get("latitude") == null) {
+                return VoiceCommandResult.fail("无法获取您的位置信息，请授权位置权限。");
             }
             
-            ResultDTO nearbyResult = parkingService.getNearbyParkings(
-                location.get("longitude"), 
-                location.get("latitude"), 
-                5000, 
-                null
-            );
+            ResultDTO nearbyResult = parkingService.getNearbyParkings(location.get("longitude"), location.get("latitude"), 5000, null);
             
             if (!nearbyResult.isSuccess() || !(nearbyResult.getData() instanceof List)) {
                 return VoiceCommandResult.fail("附近暂无可用车位。");
             }
-
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> parkingLots = (List<Map<String, Object>>) nearbyResult.getData();
             if (parkingLots.isEmpty()) {
