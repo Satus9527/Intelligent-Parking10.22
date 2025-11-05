@@ -34,7 +34,7 @@ echo [3] Table Record Counts:
 echo.
 
 REM 使用英文输出，避免乱码
-"%MYSQL_PATH%\mysql.exe" -uroot -p123 --default-character-set=utf8mb4 parking_db -e "
+"%MYSQL_PATH%\mysql.exe" -uroot -p123 --default-character-set=utf8mb4 parking_db -e "SELECT 'Parking Lots:' AS info, COUNT(*) AS count FROM parking_lot UNION ALL SELECT 'Parking Spaces:' AS info, COUNT(*) AS count FROM parking_space UNION ALL SELECT 'Users:' AS info, COUNT(*) AS count FROM user UNION ALL SELECT 'Reservations:' AS info, COUNT(*) AS count FROM reservation;" 2>nul
 SELECT 'Parking Lots:' AS info, COUNT(*) AS count FROM parking_lot
 UNION ALL
 SELECT 'Parking Spaces:' AS info, COUNT(*) AS count FROM parking_space

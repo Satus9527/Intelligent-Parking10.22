@@ -90,9 +90,10 @@ public interface ReservationMapper extends BaseMapper<ReservationEntity> {
     
     /**
      * 查询所有停车场列表（用于附近停车场接口）
+     * @param district 按行政区过滤，可为null
      * @return 停车场列表
      */
-    List<java.util.Map<String, Object>> selectAllParkingLots();
+    List<java.util.Map<String, Object>> selectAllParkingLots(@Param("district") String district);
     
     /**
      * 搜索停车场（根据名称或地址）

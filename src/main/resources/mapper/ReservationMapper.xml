@@ -127,6 +127,7 @@
             id,
             name,
             address,
+            district,
             hourly_rate AS hourlyRate,
             total_spaces AS totalSpaces,
             available_spaces AS availableSpaces,
@@ -136,6 +137,9 @@
             latitude
         FROM parking_lot
         WHERE (status = 'open' OR status = 'OPEN' OR status = 1 OR status IS NULL OR status = '')
+        <if test="district != null and district != ''">
+            AND district = #{district}
+        </if>
         ORDER BY id ASC
     </select>
     

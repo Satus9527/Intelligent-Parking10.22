@@ -16,8 +16,10 @@ spring:
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.parking.entity
+# 高德地图 (Geocoding - 地理编码)
+# 使用 Web端 Key
 amap:
-  api-key: 0cbc240249d4b8cabab54b7f4ee81bdb
+  api-key: 37a5d69a69d267e7d4ee32b21dd8b897
 
 # 微信配置
 wechat:
@@ -36,3 +38,16 @@ payment:
 jwt:
   secret: test_jwt_secret_key
   expiration: 3600
+
+# ===============================================
+# 新增：智能语音 API 配置
+# ===============================================
+# 讯飞星火大模型 (LLM + NLU)
+# 使用 Spark Ultra-32K 凭证
+iflytek:
+  spark:
+    appid: 7cd98dd6
+    api-key: 778da35a3baa3d16282719d195a5a83d
+    api-secret: NTBiNGFlNmFjZmFiZGVmNTU4YjlmNGY0
+    # 讯飞星火 v4.0 WSS 地址
+    chat-url: wss://spark-api.xf-yun.com/v4.0/chat

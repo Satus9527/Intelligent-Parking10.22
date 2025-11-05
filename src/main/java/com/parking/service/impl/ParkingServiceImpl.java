@@ -87,7 +87,7 @@ public class ParkingServiceImpl implements ParkingService {
     }
     
     @Override
-    public ResultDTO getNearbyParkings(Double longitude, Double latitude, Integer radius) {
+    public ResultDTO getNearbyParkings(Double longitude, Double latitude, Integer radius, String district) {
         try {
             // 提供默认值
             double defaultLongitude = longitude != null ? longitude : 113.3248; // 广州市中心经度
@@ -105,11 +105,15 @@ public class ParkingServiceImpl implements ParkingService {
                 return ResultDTO.fail("搜索半径必须在1-100000米之间");
             }
             
-            // 关键修复：从数据库查询所有停车场
+            // 关键修复：从数据库查询所有停车场（支持按行政区过滤）
             List<Map<String, Object>> parkings;
             try {
-                parkings = reservationMapper.selectAllParkingLots();
-                System.out.println("数据库查询成功");
+                System.out.println("========== 查询停车场列表 ==========");
+                System.out.println("区域参数: " + (district != null ? district : "全部"));
+                System.out.println("参数类型: " + (district != null ? district.getClass().getName() : "null"));
+                System.out.println("参数长度: " + (district != null ? district.length() : 0));
+                parkings = reservationMapper.selectAllParkingLots(district);
+                System.out.println("数据库查询成功 (区域: " + (district != null ? district : "全部") + "), 找到 " + (parkings != null ? parkings.size() : 0) + " 个停车场");
             } catch (Exception e) {
                 // 捕获SQL异常，提供更详细的错误信息
                 System.err.println("查询停车场数据失败: " + e.getMessage());
@@ -118,6 +122,11 @@ public class ParkingServiceImpl implements ParkingService {
             }
             
             if (parkings == null || parkings.isEmpty()) {
+                // 如果设置了区域但结果为空，返回空列表而不是错误
+                if (district != null && !district.isEmpty()) {
+                    System.out.println("区域 '" + district + "' 未找到停车场数据");
+                    return ResultDTO.success(new java.util.ArrayList<>());
+                }
                 // 添加更详细的错误信息
                 System.out.println("警告：未找到停车场数据，请检查数据库 parking_lot 表是否有数据");
                 return ResultDTO.fail("未找到停车场数据，请确保数据库 parking_lot 表中有数据");
@@ -171,6 +180,11 @@ public class ParkingServiceImpl implements ParkingService {
                 if (distance <= defaultRadius) {
                     nearbyParkings.add(parking);
                 }
+            }
+            
+            // 如果设置了区域但结果为空，返回空列表而不是所有
+            if (district != null && !district.isEmpty() && nearbyParkings.isEmpty() && parkings.isEmpty()) {
+                return ResultDTO.success(new java.util.ArrayList<>());
             }
             
             // 返回结构化数据

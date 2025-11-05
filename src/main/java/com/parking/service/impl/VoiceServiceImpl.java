@@ -1,9 +1,14 @@
 package com.parking.service.impl;
 
 import com.parking.model.dto.ParkingSpaceDTO;
+import com.parking.model.dto.ResultDTO;
 import com.parking.model.vo.VoiceCommandResult;
+import com.parking.service.AmapService;
+import com.parking.service.ChatService;
 import com.parking.service.LocationService;
+import com.parking.service.ParkingService;
 import com.parking.service.ParkingSpaceService;
+import com.parking.service.ReservationService;
 import com.parking.service.VoiceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +20,7 @@ import java.util.regex.Pattern;
 
 /**
  * 语音服务实现类
+ * 集成讯飞星火大模型进行意图识别，使用高德地图进行地理编码
  */
 @Service
 public class VoiceServiceImpl implements VoiceService {
@@ -24,6 +30,18 @@ public class VoiceServiceImpl implements VoiceService {
     
     @Autowired
     private LocationService locationService;
+    
+    @Autowired
+    private ParkingService parkingService;
+    
+    @Autowired
+    private AmapService amapService;
+    
+    @Autowired
+    private ChatService chatService;
+    
+    @Autowired
+    private ReservationService reservationService;
     
     // 指令类型常量
     private static final String COMMAND_TYPE_NEARBY = "nearby";
@@ -35,26 +53,52 @@ public class VoiceServiceImpl implements VoiceService {
     
     @Override
     public VoiceCommandResult processVoiceCommand(String voiceCommand, Long userId) {
-        // 转换为小写以便匹配
-        String command = voiceCommand.toLowerCase().trim();
-        
-        // 识别指令类型
-        String commandType = recognizeCommandType(command);
-        
-        // 根据指令类型处理
-        switch (commandType) {
-            case COMMAND_TYPE_NEARBY:
-                return handleNearbyCommand(userId);
-            case COMMAND_TYPE_NAVIGATE:
-                return handleNavigateCommand(command, userId);
-            case COMMAND_TYPE_RESERVE:
-                return handleReserveCommand(command, userId);
-            case COMMAND_TYPE_CANCEL:
-                return handleCancelCommand(command, userId);
-            case COMMAND_TYPE_STATUS:
-                return handleStatusCommand(userId);
-            default:
-                return VoiceCommandResult.fail("抱歉，我无法理解您的指令。请尝试使用'附近车位'、'导航到车位'等指令。");
+        try {
+            // 步骤1：使用星火大模型进行意图识别（NLU模式）
+            String nluResponse = chatService.getNluResponse(voiceCommand);
+            
+            if (nluResponse == null || nluResponse.trim().isEmpty() || nluResponse.equals("UNKNOWN")) {
+                // 如果无法识别意图，尝试聊天模式
+                String chatResponse = chatService.getChatResponse(voiceCommand);
+                return VoiceCommandResult.success(
+                    chatResponse != null ? chatResponse : "抱歉，我无法理解您的指令。请尝试使用'预约北京路附近的停车场'、'附近有什么停车场'等指令。",
+                    COMMAND_TYPE_UNKNOWN,
+                    null
+                );
+            }
+            
+            // 解析NLU响应（格式：意图类型|地点名称）
+            String[] parts = nluResponse.split("\\|");
+            String intent = parts[0].trim().toUpperCase();
+            String locationName = parts.length > 1 ? parts[1].trim() : "";
+            
+            // 步骤2：根据意图类型处理
+            switch (intent) {
+                case "RESERVE_NEARBY":
+                    return handleReserveNearbyCommand(locationName, userId);
+                case "QUERY_NEARBY":
+                    return handleNearbyCommand(userId);
+                case "NAVIGATE":
+                    return handleNavigateCommand(voiceCommand, userId);
+                case "RESERVE_SPACE":
+                    return handleReserveCommand(voiceCommand, userId);
+                case "CANCEL_RESERVATION":
+                    return handleCancelCommand(voiceCommand, userId);
+                case "QUERY_STATUS":
+                    return handleStatusCommand(userId);
+                default:
+                    // 无法识别，返回聊天回复
+                    String chatResponse = chatService.getChatResponse(voiceCommand);
+                    return VoiceCommandResult.success(
+                        chatResponse != null ? chatResponse : "抱歉，我无法理解您的指令。",
+                        COMMAND_TYPE_UNKNOWN,
+                        null
+                    );
+            }
+        } catch (Exception e) {
+            System.err.println("处理语音指令异常: " + e.getMessage());
+            e.printStackTrace();
+            return VoiceCommandResult.fail("处理指令时发生错误，请稍后再试");
         }
     }
     
@@ -116,38 +160,89 @@ public class VoiceServiceImpl implements VoiceService {
     // 处理附近车位查询指令
     private VoiceCommandResult handleNearbyCommand(Long userId) {
         try {
-            // 获取用户当前位置（实际应从LocationService获取）
+            // 获取用户当前位置
             Map<String, Double> location = locationService.getUserLocation(userId);
+            Double longitude = location != null ? location.get("longitude") : null;
+            Double latitude = location != null ? location.get("latitude") : null;
             
-            // 由于findNearbyAvailableSpaces方法不存在，我们提供一个模拟实现
-            List<ParkingSpaceDTO> spaces = new ArrayList<>();
-            // 添加一些模拟数据，只使用DTO中实际存在的属性
-            ParkingSpaceDTO space1 = new ParkingSpaceDTO();
-            space1.setId(1L);
-            space1.setSpaceNumber("A101");
-            spaces.add(space1);
+            // 调用 ParkingService 查询附近停车场
+            ResultDTO result = parkingService.getNearbyParkings(longitude, latitude, 5000, null);
             
-            ParkingSpaceDTO space2 = new ParkingSpaceDTO();
-            space2.setId(2L);
-            space2.setSpaceNumber("B203");
-            spaces.add(space2);
+            if (result == null || !result.isSuccess()) {
+                return VoiceCommandResult.fail("查询附近停车场失败，请稍后再试");
+            }
             
-            if (spaces.isEmpty()) {
-                return VoiceCommandResult.fail("附近暂无可用车位，请扩大搜索范围");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> parkings = (List<Map<String, Object>>) result.getData();
+            
+            if (parkings == null || parkings.isEmpty()) {
+                return VoiceCommandResult.fail("附近暂无停车场，请扩大搜索范围");
             }
             
             // 转换为响应数据
             Map<String, Object> data = new HashMap<>();
-            data.put("total", spaces.size());
-            data.put("spaces", spaces.subList(0, Math.min(5, spaces.size()))); // 最多返回5个
+            data.put("total", parkings.size());
+            data.put("parkings", parkings.subList(0, Math.min(5, parkings.size()))); // 最多返回5个
             
             return VoiceCommandResult.success(
-                "附近有" + spaces.size() + "个可用车位",
+                "附近有" + parkings.size() + "个停车场",
                 COMMAND_TYPE_NEARBY,
                 data
             );
         } catch (Exception e) {
-            return VoiceCommandResult.fail("获取附近车位失败，请稍后再试");
+            System.err.println("查询附近停车场异常: " + e.getMessage());
+            e.printStackTrace();
+            return VoiceCommandResult.fail("获取附近停车场失败，请稍后再试");
+        }
+    }
+    
+    // 处理预约附近地点停车场的指令（新增）
+    private VoiceCommandResult handleReserveNearbyCommand(String locationName, Long userId) {
+        try {
+            if (locationName == null || locationName.trim().isEmpty()) {
+                return VoiceCommandResult.fail("请指定地点名称，例如：预约北京路附近的停车场");
+            }
+            
+            // 步骤1：使用高德地图进行地理编码
+            Map<String, Double> coords = amapService.geocode(locationName);
+            if (coords == null) {
+                return VoiceCommandResult.fail("无法找到地点\"" + locationName + "\"，请检查地点名称是否正确");
+            }
+            
+            Double longitude = coords.get("longitude");
+            Double latitude = coords.get("latitude");
+            
+            // 步骤2：查询该地点附近的停车场
+            ResultDTO result = parkingService.getNearbyParkings(longitude, latitude, 2000, null);
+            
+            if (result == null || !result.isSuccess()) {
+                return VoiceCommandResult.fail("查询附近停车场失败，请稍后再试");
+            }
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> parkings = (List<Map<String, Object>>) result.getData();
+            
+            if (parkings == null || parkings.isEmpty()) {
+                return VoiceCommandResult.fail(locationName + "附近暂无停车场，请扩大搜索范围");
+            }
+            
+            // 转换为响应数据
+            Map<String, Object> data = new HashMap<>();
+            data.put("location", locationName);
+            data.put("longitude", longitude);
+            data.put("latitude", latitude);
+            data.put("total", parkings.size());
+            data.put("parkings", parkings.subList(0, Math.min(5, parkings.size()))); // 最多返回5个
+            
+            return VoiceCommandResult.success(
+                "已找到" + locationName + "附近" + parkings.size() + "个停车场",
+                COMMAND_TYPE_RESERVE,
+                data
+            );
+        } catch (Exception e) {
+            System.err.println("预约附近停车场异常: " + e.getMessage());
+            e.printStackTrace();
+            return VoiceCommandResult.fail("处理预约请求失败，请稍后再试");
         }
     }
     

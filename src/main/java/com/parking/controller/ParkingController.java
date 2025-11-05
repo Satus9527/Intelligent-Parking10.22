@@ -31,8 +31,9 @@ public class ParkingController {
     public ResultDTO getNearbyParkings(
             @RequestParam(required = false) Double longitude,
             @RequestParam(required = false) Double latitude,
-            @RequestParam(required = false) Integer radius) {
-        return parkingService.getNearbyParkings(longitude, latitude, radius);
+            @RequestParam(required = false) Integer radius,
+            @RequestParam(required = false) String district) {
+        return parkingService.getNearbyParkings(longitude, latitude, radius, district);
     }
     
     /**

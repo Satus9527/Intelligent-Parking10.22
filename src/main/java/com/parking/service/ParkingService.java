@@ -23,9 +23,10 @@ public interface ParkingService {
      * @param longitude 经度
      * @param latitude 纬度
      * @param radius 搜索半径（米）
+     * @param district 行政区
      * @return 停车场列表
      */
-    ResultDTO getNearbyParkings(Double longitude, Double latitude, Integer radius);
+    ResultDTO getNearbyParkings(Double longitude, Double latitude, Integer radius, String district);
     
     /**
      * 搜索停车场（根据名称或地址）

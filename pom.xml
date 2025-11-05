@@ -93,6 +93,27 @@
             <optional>true</optional>
         </dependency>
         
+        <!-- HTTP客户端 - 用于讯飞星火API -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.10.0</version>
+        </dependency>
+        
+        <!-- JSON处理 - Gson -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.9.0</version>
+        </dependency>
+        
+        <!-- 编码工具 - 用于HmacSHA256签名 -->
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.15</version>
+        </dependency>
+        
         <!-- 测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
