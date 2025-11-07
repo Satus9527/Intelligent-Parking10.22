@@ -19,16 +19,17 @@ public class VoiceController {
     @Autowired
     private VoiceService voiceService;
     
+    @Autowired
+    private com.parking.service.ChatService chatService;
+    
     /**
      * 处理语音指令
      * @param command 语音指令文本
-     * @param userId 用户ID（从请求头或会话中获取）
      * @return 语音处理结果
      */
     @PostMapping("/process")
     public ResponseEntity<VoiceCommandResult> processVoiceCommand(
-            @RequestBody Map<String, String> requestBody,
-            @RequestAttribute("userId") Long userId) {
+            @RequestBody Map<String, String> requestBody) {
         
         String command = requestBody.get("command");
         if (command == null || command.trim().isEmpty()) {
@@ -37,8 +38,27 @@ public class VoiceController {
             );
         }
         
-        VoiceCommandResult result = voiceService.processVoiceCommand(command, userId);
-        return ResponseEntity.ok(result);
+        // 使用默认userId（1L），或者从请求中获取（如果前端传递了）
+        Long userId = 1L; // 默认用户ID
+        if (requestBody.containsKey("userId")) {
+            try {
+                userId = Long.parseLong(requestBody.get("userId"));
+            } catch (NumberFormatException e) {
+                // 如果解析失败，使用默认值
+            }
+        }
+        
+        System.out.println("收到语音指令: " + command + ", userId: " + userId);
+        
+        try {
+            VoiceCommandResult result = voiceService.processVoiceCommand(command, userId);
+            System.out.println("语音指令处理成功: " + result.getMessage());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            System.err.println("处理语音指令时发生异常: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.ok(VoiceCommandResult.fail("抱歉，我现在有点忙，请稍后再试。"));
+        }
     }
     
     /**
@@ -89,6 +109,77 @@ public class VoiceController {
         Map<String, String> result = new HashMap<>();
         result.put("commandType", commandType);
         
+        return ResponseEntity.ok(result);
+    }
+    
+    /**
+     * 测试讯飞API连接（用于调试）
+     */
+    @GetMapping("/test-spark")
+    public ResponseEntity<Map<String, Object>> testSparkConnection() {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            System.out.println("========== 开始测试讯飞API连接 ==========");
+            String testResponse = chatService.getChatResponse("你好");
+            result.put("success", true);
+            result.put("message", "讯飞API连接成功");
+            result.put("response", testResponse);
+            System.out.println("========== 讯飞API测试成功 ==========");
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "讯飞API连接失败: " + e.getMessage());
+            result.put("error", e.getClass().getName());
+            result.put("errorDetail", e.toString());
+            result.put("stackTrace", getStackTrace(e));
+            System.err.println("========== 讯飞API测试失败 ==========");
+            e.printStackTrace();
+        }
+        return ResponseEntity.ok(result);
+    }
+    
+    /**
+     * 获取异常堆栈信息
+     */
+    private String getStackTrace(Exception e) {
+        java.io.StringWriter sw = new java.io.StringWriter();
+        java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+        e.printStackTrace(pw);
+        return sw.toString();
+    }
+    
+    /**
+     * 测试NLU解析（用于调试）
+     */
+    @PostMapping("/test-nlu")
+    public ResponseEntity<Map<String, Object>> testNlu(@RequestBody Map<String, String> requestBody) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            String command = requestBody.get("command");
+            if (command == null || command.trim().isEmpty()) {
+                result.put("success", false);
+                result.put("message", "command参数不能为空");
+                return ResponseEntity.ok(result);
+            }
+            
+            System.out.println("========== 开始测试NLU解析 ==========");
+            System.out.println("输入指令: " + command);
+            
+            String nluResponse = chatService.getNluResponse(command);
+            result.put("success", true);
+            result.put("message", "NLU解析成功");
+            result.put("nluResponse", nluResponse);
+            
+            System.out.println("NLU响应: " + nluResponse);
+            System.out.println("========== NLU测试完成 ==========");
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "NLU解析失败: " + e.getMessage());
+            result.put("error", e.getClass().getName());
+            result.put("errorDetail", e.toString());
+            result.put("stackTrace", getStackTrace(e));
+            System.err.println("========== NLU测试失败 ==========");
+            e.printStackTrace();
+        }
         return ResponseEntity.ok(result);
     }
 }
