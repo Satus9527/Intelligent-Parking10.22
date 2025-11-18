@@ -1,0 +1,171 @@
+.container {
+  padding: 16rpx;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.loading, .error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 200rpx;
+  color: #666;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 6rpx solid #f3f3f3;
+  border-top: 6rpx solid #1677ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20rpx;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.retry-btn {
+  margin-top: 30rpx;
+  background-color: #1677ff;
+  color: white;
+  padding: 10rpx 40rpx;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  border: none;
+  line-height: 1.8;
+}
+
+.retry-btn:active {
+  background-color: #0958d9;
+}
+
+.detail-container {
+  background-color: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+}
+
+/* 状态卡片 */
+.status-card {
+  padding: 32rpx;
+  border-radius: 12rpx;
+  margin-bottom: 32rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-text {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.payment-status {
+  font-size: 28rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 100rpx;
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+/* 信息区块 */
+.section {
+  margin-bottom: 32rpx;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 20rpx;
+  padding-bottom: 12rpx;
+  border-bottom: 1rpx solid #eee;
+}
+
+.info-item {
+  display: flex;
+  padding: 16rpx 0;
+  font-size: 28rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.label {
+  color: #999;
+  width: 25%;
+}
+
+.value {
+  color: #333;
+  flex: 1;
+}
+
+.price {
+  color: #f53f3f;
+  font-weight: 500;
+}
+
+/* 操作按钮 */
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-top: 40rpx;
+}
+
+.pay-btn, .cancel-btn, .back-btn {
+  padding: 16rpx 0;
+  font-size: 32rpx;
+  border-radius: 8rpx;
+  border: none;
+}
+
+.pay-btn {
+  background-color: #1677ff;
+  color: white;
+}
+
+.pay-btn:active {
+  background-color: #0958d9;
+}
+
+.cancel-btn {
+  background-color: #fff;
+  color: #666;
+  border: 1rpx solid #d9d9d9;
+}
+
+.cancel-btn:active {
+  background-color: #f5f5f5;
+}
+
+.back-btn {
+  background-color: #fff;
+  color: #666;
+  border: 1rpx solid #d9d9d9;
+}
+
+.back-btn:active {
+  background-color: #f5f5f5;
+}
+
+/* 响应式调整 */
+@media screen and (min-width: 768px) {
+  .container {
+    padding: 24rpx;
+    max-width: 800rpx;
+    margin: 0 auto;
+  }
+  
+  .detail-container {
+    padding: 32rpx;
+  }
+}

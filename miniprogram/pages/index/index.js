@@ -214,128 +214,119 @@ Page({
     
     wx.showLoading({ title: '加载中...' });
     
-    wx.request({
-      url: `${app.globalData.apiBaseUrl}/api/v1/parking/nearby`,
+    // 使用app.request封装，统一错误处理和超时设置
+    app.request({
+      url: '/api/v1/parking/nearby',
       method: 'GET',
       data: {
         longitude: this.data.longitude,
         latitude: this.data.latitude,
         radius: 10000 // 10公里
-      },
-      header: {
-        'content-type': 'application/json'
-      },
-      success: function(res) {
-        wx.hideLoading();
+      }
+    }).then(res => {
+      wx.hideLoading();
+      
+      // 检查响应数据格式
+      if (res && res.success && Array.isArray(res.data)) {
+        const allParkings = res.data;
+        console.log('获取到停车场数据:', allParkings.length, '个停车场');
         
-        if (res.statusCode === 200 && res.data.success) {
-          // res.data.data 是停车场列表
-          const allParkings = Array.isArray(res.data.data) ? res.data.data : [];
-          
-          console.log('获取到停车场数据:', allParkings.length, '个停车场');
-          
-          // 处理数据，确保格式统一
-      const parkingsWithDistance = allParkings.map(parking => {
-            // 确保ID是数字类型
-            const parkingId = Number(parking.id) || 0;
-            // 确保经纬度是数字类型
-            const parkingLng = Number(parking.longitude) || 0;
-            const parkingLat = Number(parking.latitude) || 0;
-            
-            // 计算距离（如果前端需要显示距离）
-            const distance = that.calculateDistance(
-              that.data.longitude, 
-              that.data.latitude, 
-              parkingLng, 
-              parkingLat
-            );
-            
-        return {
-              id: parkingId,
-              name: parking.name || '未命名停车场',
-              address: parking.address || '',
-              area: parking.area || '',
-              distance: distance,
-              longitude: parkingLng,
-              latitude: parkingLat,
-              totalSpaces: Number(parking.totalSpaces) || 0,
-              availableSpaces: Number(parking.availableSpaces) || 0,
-              hourlyRate: Number(parking.hourlyRate) || 0,
-              pricePerHour: Number(parking.hourlyRate) || 0,
-              status: parking.status || 1
-            };
-          }).sort((a, b) => a.distance - b.distance);
-      
-      // 生成地图标记
-      const markers = parkingsWithDistance.map((parking, index) => {
-        try {
+        // 处理数据，确保格式统一
+        const parkingsWithDistance = allParkings.map(parking => {
           // 确保ID是数字类型
-              const markerId = Number(parking.id) || 0;
-              if (markerId <= 0) {
-            console.warn(`Invalid parking ID: ${parking.id}`);
-            return null; // 跳过无效ID的标记
-          }
-          
+          const parkingId = Number(parking.id) || 0;
           // 确保经纬度是数字类型
-              const markerLatitude = Number(parking.latitude) || 0;
-              const markerLongitude = Number(parking.longitude) || 0;
-              if (markerLatitude === 0 || markerLongitude === 0) {
-            console.warn(`Invalid coordinates for parking ${parking.name}`);
-            return null; // 跳过无效坐标的标记
-          }
+          const parkingLng = Number(parking.longitude) || 0;
+          const parkingLat = Number(parking.latitude) || 0;
           
-          // 根据可用车位数量设置不同的标记颜色
-          const color = parking.availableSpaces > 0 ? '#52c41a' : '#ff4d4f';
+          // 计算距离（如果前端需要显示距离）
+          const distance = that.calculateDistance(
+            that.data.longitude, 
+            that.data.latitude, 
+            parkingLng, 
+            parkingLat
+          );
           
-          // 确保不使用iconPath，完全使用默认标记样式
           return {
-            id: markerId,
-            latitude: markerLatitude,
-            longitude: markerLongitude,
-            width: 30,
-            height: 30,
-            title: parking.name || '',
-            callout: {
-              content: `${parking.name || '未命名停车场'}\n可用车位: ${parking.availableSpaces || 0}/${parking.totalSpaces || 0}\n距离: ${parking.distance ? parking.distance.toFixed(1) : '未知'}km`,
-              display: 'BYCLICK',
-              fontSize: 12,
-              padding: 8,
-              borderRadius: 4,
-              bgColor: 'rgba(255, 255, 255, 0.9)',
-              color: '#333'
-            },
-            // 不设置iconPath，使用默认标记样式
-            // 不设置backgroundColor，使用系统默认颜色
-            // 为了兼容不同版本，保留基本属性
+            id: parkingId,
+            name: parking.name || '未命名停车场',
+            address: parking.address || '',
+            area: parking.area || '',
+            distance: distance,
+            longitude: parkingLng,
+            latitude: parkingLat,
+            totalSpaces: Number(parking.totalSpaces) || 0,
+            availableSpaces: Number(parking.availableSpaces) || 0,
+            hourlyRate: Number(parking.hourlyRate) || 0,
+            pricePerHour: Number(parking.hourlyRate) || 0,
+            status: parking.status || 1
           };
-        } catch (err) {
-          console.error('Error creating marker for parking:', parking.name, err);
-          return null; // 跳过创建失败的标记
-        }
-      }).filter(marker => marker !== null); // 过滤掉无效的标记
-      
-          that.setData({
-        markers: markers,
-        nearbyParkings: parkingsWithDistance.slice(0, 5) // 显示前5个最近的停车场
-          });
-        } else {
-          console.error('获取停车场数据失败:', res);
-          wx.showToast({
-            title: res.data?.message || '加载停车场数据失败',
-            icon: 'none',
-            duration: 2000
-          });
-        }
-      },
-      fail: function(err) {
-        wx.hideLoading();
-        console.error('加载停车场数据失败:', err);
-      wx.showToast({
-          title: '网络请求失败',
-        icon: 'none',
-        duration: 2000
+        }).sort((a, b) => a.distance - b.distance);
+    
+        // 生成地图标记
+        const markers = parkingsWithDistance.map((parking, index) => {
+          try {
+            // 确保ID是数字类型
+            const markerId = Number(parking.id) || 0;
+            if (markerId <= 0) {
+              console.warn(`Invalid parking ID: ${parking.id}`);
+              return null; // 跳过无效ID的标记
+            }
+            
+            // 确保经纬度是数字类型
+            const markerLatitude = Number(parking.latitude) || 0;
+            const markerLongitude = Number(parking.longitude) || 0;
+            if (markerLatitude === 0 || markerLongitude === 0) {
+              console.warn(`Invalid coordinates for parking ${parking.name}`);
+              return null; // 跳过无效坐标的标记
+            }
+            
+            // 根据可用车位数量设置不同的标记颜色
+            const color = parking.availableSpaces > 0 ? '#52c41a' : '#ff4d4f';
+            
+            // 确保不使用iconPath，完全使用默认标记样式
+            return {
+              id: markerId,
+              latitude: markerLatitude,
+              longitude: markerLongitude,
+              width: 30,
+              height: 30,
+              title: parking.name || '',
+              callout: {
+                content: `${parking.name || '未命名停车场'}\n可用车位: ${parking.availableSpaces || 0}/${parking.totalSpaces || 0}\n距离: ${parking.distance ? parking.distance.toFixed(1) : '未知'}km`,
+                display: 'BYCLICK',
+                fontSize: 12,
+                padding: 8,
+                borderRadius: 4,
+                bgColor: 'rgba(255, 255, 255, 0.9)',
+                color: '#333'
+              },
+              // 不设置iconPath，使用默认标记样式
+              // 不设置backgroundColor，使用系统默认颜色
+              // 为了兼容不同版本，保留基本属性
+            };
+          } catch (err) {
+            console.error('Error creating marker for parking:', parking.name, err);
+            return null; // 跳过创建失败的标记
+          }
+        }).filter(marker => marker !== null); // 过滤掉无效的标记
+    
+        that.setData({
+          markers: markers,
+          nearbyParkings: parkingsWithDistance.slice(0, 5) // 显示前5个最近的停车场
         });
-    }
+      } else {
+        console.error('获取停车场数据失败: 数据格式错误', res);
+        wx.showToast({
+          title: res?.message || '加载停车场数据失败',
+          icon: 'none',
+          duration: 2000
+        });
+      }
+    }).catch(err => {
+      wx.hideLoading();
+      console.error('加载停车场数据失败:', err);
+      // 错误提示已经在app.request中处理
     });
   },
   
@@ -462,73 +453,76 @@ Page({
     
     wx.showLoading({ title: '加载中' })
     
-    wx.request({
-      url: `${app.globalData.apiBaseUrl}/api/v1/parking/nearby`,
+    // 使用app.request封装，统一错误处理和超时设置
+    app.request({
+      url: '/api/v1/parking/nearby',
       method: 'GET',
       data: {
         longitude: this.data.longitude || 113.3248,
         latitude: this.data.latitude || 23.1288,
         radius: 10000 // 10公里
-      },
-      header: {
-        'content-type': 'application/json'
-      },
-      success: function(res) {
-        wx.hideLoading();
+      }
+    }).then(res => {
+      wx.hideLoading();
+      
+      // 检查响应数据格式
+      if (res && res.success && Array.isArray(res.data)) {
+        // res.data 是停车场列表
+        let allParkings = res.data;
         
-        if (res.statusCode === 200 && res.data.success) {
-          // res.data.data 是停车场列表
-          let allParkings = Array.isArray(res.data.data) ? res.data.data : [];
+        // 处理数据，确保ID是数字类型
+        const recommendedData = allParkings.slice(0, 5).map(parking => {
+          const parkingId = Number(parking.id) || 0;
+          const parkingLng = Number(parking.longitude) || 0;
+          const parkingLat = Number(parking.latitude) || 0;
           
-          // 处理数据，确保ID是数字类型
-          const recommendedData = allParkings.slice(0, 5).map(parking => {
-            const parkingId = Number(parking.id) || 0;
-            const parkingLng = Number(parking.longitude) || 0;
-            const parkingLat = Number(parking.latitude) || 0;
-            
-            // 计算距离
-            const distance = that.calculateDistance(
-              that.data.longitude || 113.3248,
-              that.data.latitude || 23.1288,
-              parkingLng,
-              parkingLat
-            );
-            
-            return {
-              id: parkingId, // 关键：确保ID是数字
-              name: parking.name || '未命名停车场',
-              address: parking.address || '',
-              area: parking.area || '',
-              distance: distance * 1000, // 转换为米
-              longitude: parkingLng,
-              latitude: parkingLat,
-              totalSpaces: Number(parking.totalSpaces) || 0,
-              availableSpaces: Number(parking.availableSpaces) || 0,
-              hourlyRate: Number(parking.hourlyRate) || 0,
-              pricePerHour: Number(parking.hourlyRate) || 0,
-              status: parking.status || 1
-            };
-          }).sort((a, b) => a.distance - b.distance); // 按距离排序
+          // 计算距离
+          const distance = that.calculateDistance(
+            that.data.longitude || 113.3248,
+            that.data.latitude || 23.1288,
+            parkingLng,
+            parkingLat
+          );
           
-          that.setData({
+          return {
+            id: parkingId, // 关键：确保ID是数字
+            name: parking.name || '未命名停车场',
+            address: parking.address || '',
+            area: parking.area || '',
+            distance: distance * 1000, // 转换为米
+            longitude: parkingLng,
+            latitude: parkingLat,
+            totalSpaces: Number(parking.totalSpaces) || 0,
+            availableSpaces: Number(parking.availableSpaces) || 0,
+            hourlyRate: Number(parking.hourlyRate) || 0,
+            pricePerHour: Number(parking.hourlyRate) || 0,
+            status: parking.status || 1
+          };
+        }).sort((a, b) => a.distance - b.distance); // 按距离排序
+        
+        that.setData({
           recommendedParkings: recommendedData
-          });
-        } else {
-          console.error('获取推荐停车场失败:', res);
-          // 如果API失败，设置为空数组，不显示推荐停车场
-          that.setData({
-            recommendedParkings: []
-          });
-        }
-      },
-      fail: function(err) {
-        wx.hideLoading();
-        console.error('加载推荐停车场失败:', err);
-        // 如果网络请求失败，设置为空数组
+        });
+      } else {
+        console.error('获取推荐停车场失败: 数据格式错误', res);
+        // 如果API失败，设置为空数组，不显示推荐停车场
         that.setData({
           recommendedParkings: []
         });
+        wx.showToast({
+          title: res?.message || '加载推荐停车场失败',
+          icon: 'none',
+          duration: 2000
+        });
       }
+    }).catch(err => {
+      wx.hideLoading();
+      console.error('加载推荐停车场失败:', err);
+      // 如果网络请求失败，设置为空数组
+      that.setData({
+        recommendedParkings: []
+      });
+      // 错误提示已经在app.request中处理
     });
   },
 

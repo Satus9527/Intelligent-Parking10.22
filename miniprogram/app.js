@@ -3,11 +3,11 @@ App({
   globalData: {
     userInfo: null,
     token: '',
-    apiBaseUrl: 'http://172.20.10.5:8081', // 修改为后端实际API地址（真机测试使用局域网IP）
+    apiBaseUrl: 'http://172.20.10.5:8082', // 修改为后端实际API地址（真机测试使用局域网IP）
     mockMode: false, // 关闭模拟模式，使用真实API
     appConfig: {
       debug: true,
-      timeout: 10000
+      timeout: 30000 // 增加超时时间到30秒，更好地处理网络较慢的情况
     },
     // 高德地图 API Key（微信小程序端）
     amapApiKey: '6f2913cf2e046ca0e89c34f65cc2b810'
@@ -112,7 +112,7 @@ App({
 
   // 封装网络请求
   request: function(options) {
-    const { url, method = 'GET', data = {}, header = {} } = options
+    const { url, method = 'GET', data = {}, header = {}, showError = true } = options
     
     // 添加认证头
     if (this.globalData.token) {
@@ -128,24 +128,31 @@ App({
           'content-type': 'application/json',
           ...header
         },
-        timeout: this.globalData.appConfig.timeout,
+        timeout: options.timeout || this.globalData.appConfig.timeout,
         success: (res) => {
           // 处理业务错误
           if (res.data.code && res.data.code !== 200) {
-            wx.showToast({
-              title: res.data.message || '请求失败',
-              icon: 'none'
-            })
+            if (showError) {
+              wx.showToast({
+                title: res.data.message || '请求失败',
+                icon: 'none'
+              })
+            }
             reject(res.data)
           } else {
             resolve(res.data)
           }
         },
         fail: (err) => {
-          wx.showToast({
-            title: '网络请求失败',
-            icon: 'none'
-          })
+          // 判断是否为超时错误
+          const isTimeout = err.errMsg && err.errMsg.includes('timeout')
+          if (showError) {
+            wx.showToast({
+              title: isTimeout ? '请求超时，请检查网络连接' : '网络请求失败',
+              icon: 'none',
+              duration: 2000
+            })
+          }
           reject(err)
         }
       })

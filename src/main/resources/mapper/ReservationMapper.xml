@@ -122,6 +122,7 @@
     </select>
     
     <!-- 查询所有停车场列表（用于附近停车场接口） -->
+    <!-- 优化：简化status条件，提高查询效率 -->
     <select id="selectAllParkingLots" resultType="java.util.HashMap">
         SELECT 
             id,
@@ -136,11 +137,12 @@
             longitude,
             latitude
         FROM parking_lot
-        WHERE (status = 'open' OR status = 'OPEN' OR status = 1 OR status IS NULL OR status = '')
+        WHERE (status IS NULL OR status = '' OR status = 'open' OR status = 'OPEN' OR status = 1)
         <if test="district != null and district != ''">
             AND district = #{district}
         </if>
         ORDER BY id ASC
+        LIMIT 1000
     </select>
     
     <!-- 搜索停车场（根据名称或地址） -->

@@ -80,11 +80,12 @@ jspm_packages/
 # Local History for Visual Studio Code
 .history/
 
-# Built output
-*.wxss
-*.wxml
-*.js
-*.json
+# Built output (excluding miniprogram source files)
+# Note: miniprogram/ directory should be tracked
+# *.wxss
+# *.wxml
+# *.js
+# *.json
 
 # Optional npm cache directory
 .npm

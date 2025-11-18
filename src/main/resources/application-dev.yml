@@ -1,13 +1,15 @@
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/parking_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    url: jdbc:mysql://localhost:3306/parking_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&connectTimeout=10000&socketTimeout=30000
     username: root
-    password: 123
+    password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       minimum-idle: 5
       maximum-pool-size: 20
       idle-timeout: 30000
+      connection-timeout: 10000  # 连接超时时间（毫秒），10秒
+      max-lifetime: 1800000      # 连接最大生存时间（毫秒），30分钟
       pool-name: ParkingHikariCP
   redis:
     host: localhost

@@ -107,16 +107,21 @@ public class ParkingServiceImpl implements ParkingService {
             
             // 关键修复：从数据库查询所有停车场（支持按行政区过滤）
             List<Map<String, Object>> parkings;
+            long startTime = System.currentTimeMillis();
             try {
                 System.out.println("========== 查询停车场列表 ==========");
                 System.out.println("区域参数: " + (district != null ? district : "全部"));
-                System.out.println("参数类型: " + (district != null ? district.getClass().getName() : "null"));
-                System.out.println("参数长度: " + (district != null ? district.length() : 0));
                 parkings = reservationMapper.selectAllParkingLots(district);
-                System.out.println("数据库查询成功 (区域: " + (district != null ? district : "全部") + "), 找到 " + (parkings != null ? parkings.size() : 0) + " 个停车场");
+                long queryTime = System.currentTimeMillis() - startTime;
+                System.out.println("数据库查询成功 (区域: " + (district != null ? district : "全部") + "), 找到 " + (parkings != null ? parkings.size() : 0) + " 个停车场, 耗时: " + queryTime + "ms");
+                
+                // 如果查询时间超过5秒，记录警告
+                if (queryTime > 5000) {
+                    System.err.println("警告：数据库查询耗时过长: " + queryTime + "ms，建议检查索引和表数据量");
+                }
             } catch (Exception e) {
-                // 捕获SQL异常，提供更详细的错误信息
-                System.err.println("查询停车场数据失败: " + e.getMessage());
+                long queryTime = System.currentTimeMillis() - startTime;
+                System.err.println("查询停车场数据失败 (耗时: " + queryTime + "ms): " + e.getMessage());
                 e.printStackTrace();
                 return ResultDTO.fail("查询停车场数据失败: " + e.getMessage());
             }

@@ -1,0 +1,190 @@
+<!--pages/parking/detail.wxml-->
+<view class="container">
+  <!-- 加载状态 -->
+  <view class="loading" wx:if="{{loading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 错误状态 -->
+  <view class="error" wx:elif="{{error}}">
+    <text class="error-text">加载失败</text>
+    <button class="retry-btn" bindtap="retry">重试</button>
+  </view>
+
+  <!-- 停车场详情内容 - 添加过渡效果 -->
+  <scroll-view wx:else scroll-y="true" class="detail-scroll fade-in">
+    <!-- 基本信息 -->
+    <view class="parking-header">
+      <view class="parking-name">{{parkingDetails.name}}</view>
+      <view class="parking-meta">
+        <view class="meta-item">
+          <text class="meta-label">距离:</text>
+          <text class="meta-value">{{parkingDetails.distance}}</text>
+        </view>
+        <view class="meta-item">
+          <text class="meta-label">区域:</text>
+          <text class="meta-value area">{{parkingDetails.area}}</text>
+        </view>
+        <view class="meta-item">
+          <text class="meta-label">价格:</text>
+          <text class="meta-value">{{parkingDetails.price}}</text>
+        </view>
+        <view class="meta-item">
+          <text class="meta-label">评分:</text>
+          <text class="meta-value rating">{{parkingDetails.rating}}</text>
+        </view>
+      </view>
+      <view class="parking-address">{{parkingDetails.address}}</view>
+      <view class="parking-status">
+        <text class="available-text">可用车位: {{parkingDetails.availableSpaces}}/{{parkingDetails.totalSpaces}}</text>
+      </view>
+    </view>
+
+    <!-- 操作按钮组 -->
+    <view class="action-buttons">
+      <view class="action-btn" bindtap="openNavigation">
+        <text class="btn-text">导航</text>
+      </view>
+      <view class="action-btn" bindtap="makePhoneCall">
+        <text class="btn-text">电话</text>
+      </view>
+      <view class="action-btn" bindtap="onShareAppMessage">
+        <text class="btn-text">分享</text>
+      </view>
+    </view>
+
+    <!-- 停车场详情 -->
+    <view class="detail-section">
+      <view class="section-title">停车场介绍</view>
+      <view class="section-content">
+        <text class="parking-description">{{parkingDetails.description}}</text>
+        <view class="feature-list">
+          <view class="feature-item" wx:for="{{parkingDetails.features}}" wx:key="index">
+            {{item}}
+          </view>
+        </view>
+        <view class="detail-info">
+          <view class="info-item">
+            <text class="info-label">营业时间:</text>
+            <text class="info-value">{{parkingDetails.openingHours}}</text>
+          </view>
+          <view class="info-item">
+            <text class="info-label">联系电话:</text>
+            <text class="info-value">{{parkingDetails.contactPhone}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 可用车位 -->
+    <view class="detail-section">
+      <view class="section-title">可用车位</view>
+      
+      <!-- 区域分组显示 -->
+      <view wx:if="{{groupedSpaces.length > 0}}" class="space-sections">
+        <!-- 区域标题 -->
+        <view class="section-headers">
+          <text class="section-header">区域</text>
+          <text class="section-header">可用/总数</text>
+          <text class="section-header">操作</text>
+        </view>
+        
+        <!-- 区域列表 -->
+        <view class="section-list">
+          <view wx:for="{{groupedSpaces}}" wx:key="sectionLabel" class="section-group">
+            <!-- 区域信息头部 -->
+            <view class="section-group-header">
+              <view class="section-info">
+                <text class="section-name">{{item.sectionLabel}}</text>
+                <text class="section-count">
+                  <text class="available-count">{{item.availableSpaces}}</text>
+                  <text class="total-count">/{{item.totalSpaces}}</text>
+                </text>
+              </view>
+            </view>
+            
+            <!-- 区域内车位列表 -->
+            <view class="section-spaces">
+              <view wx:for="{{item.spaces}}" wx:for-item="space" wx:key="id" 
+                    class="space-item {{selectedSpaceId === space.id ? 'selected' : ''}} {{!space.isAvailable ? 'unavailable' : ''}}" 
+                    catchtap="selectSpace" 
+                    data-id="{{space.id}}"
+                    data-space-info="{{space}}"
+                    hover-start-time="0"
+                    hover-stay-time="0"
+                    hover-class="space-item-hover"
+              >
+                <view class="space-info">
+                  <view class="space-number">{{space.number}}号</view>
+                  <view class="space-type" wx:if="{{space.type === 'EV'}}">
+                    <view class="ev-badge">电动车位</view>
+                  </view>
+                </view>
+                <view class="space-distance">{{space.distance}}</view>
+                <view class="space-status">
+                  <view class="status-indicator {{space.isAvailable ? 'available' : 'unavailable'}}" 
+                        wx:if="{{space.isAvailable}}">
+                    可用
+                  </view>
+                  <view class="status-indicator {{space.isAvailable ? 'available' : 'unavailable'}}" 
+                        wx:else>
+                    已占
+                  </view>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+      
+      <!-- 无数据状态 -->
+      <view wx:else class="no-spaces">
+        <text class="no-spaces-text">暂无可用车位信息</text>
+      </view>
+    </view>
+
+    <!-- 预约表单 -->
+    <view class="detail-section">
+      <view class="section-title">预约信息</view>
+      <view class="booking-form">
+        <view class="form-item">
+          <text class="form-label">车牌号</text>
+          <view class="vehicle-selector" bindtap="openVehicleSelector">
+            <text class="vehicle-number">{{bookingInfo.vehicleNumber || '请选择车牌号'}}</text>
+            <text class="arrow-icon">></text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 车牌号选择器模态框 -->
+    <view class="vehicle-modal" wx:if="{{showVehicleSelector}}">
+      <view class="modal-overlay" bindtap="closeVehicleSelector"></view>
+      <view class="modal-content">
+        <view class="modal-header">
+          <text class="modal-title">选择车牌号</text>
+          <text class="modal-close" bindtap="closeVehicleSelector">×</text>
+        </view>
+        <view class="vehicle-list">
+          <view class="vehicle-item {{selectedVehicleIndex === index ? 'selected' : ''}}" 
+                wx:for="{{vehicles}}" 
+                wx:key="id" 
+                data-index="{{index}}" 
+                bindtap="selectVehicle">
+            <view class="vehicle-info">
+              <text class="plate-number">{{item.plateNumber}}</text>
+              <text class="vehicle-type">{{item.type}}</text>
+            </view>
+            <text class="check-icon" wx:if="{{selectedVehicleIndex === index}}">✓</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 底部预约按钮 -->
+    <view class="bottom-actions">
+      <button class="book-btn" bindtap="submitBooking">立即预约</button>
+    </view>
+  </scroll-view>
+</view>
