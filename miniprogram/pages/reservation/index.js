@@ -38,8 +38,9 @@ Page({
     
     // 调用后端API获取用户预约记录
       wx.request({
-        url: `${app.globalData.apiBaseUrl}/api/reservations/user`,
+        url: `${app.globalData.apiBaseUrl}/api/v1/reservations/user`,
         method: 'GET',
+        header: { 'Authorization': `Bearer ${app.globalData.token}` },
         data: {
           pageNum: 1,
           pageSize: 10
@@ -49,7 +50,10 @@ Page({
         
         if (res.statusCode === 200 && res.data) {
           // 格式化数据以适配前端展示需求
-          const reservationData = res.data || [];
+          // 处理返回数据格式（可能是数组或包含data/list的对象）
+          const resultData = res.data.data || res.data;
+          const reservationData = Array.isArray(resultData) ? resultData : (resultData.list || []);
+          const that = this;
           const formattedReservations = reservationData.map(item => {
             // 获取停车场名称（优先使用 parkingLotName，兼容 parkingName）
             const parkingName = item.parkingLotName || item.parkingName || '未知停车场';
@@ -68,19 +72,42 @@ Page({
               }
             }
             
+            // 从本地存储读取解锁状态
+            let isUnlocked = false;
+            try {
+              const unlockedReservations = wx.getStorageSync('unlockedReservations') || {};
+              isUnlocked = unlockedReservations[item.id] === true;
+            } catch (e) {
+              console.error('读取解锁状态失败:', e);
+            }
+            
+            // 根据原始状态和解锁状态确定显示状态
+            let displayStatus = that.getStatusText(item.status);
+            if (item.status === 0 && isUnlocked) {
+              // 如果后端状态是待使用（0）且已解锁，显示为"使用中"
+              displayStatus = '使用中';
+            } else if (item.status === 1) {
+              // 已使用状态：如果有结束时间则显示"已完成"，否则显示"使用中"
+              if (item.actualExitTime) {
+                displayStatus = '已完成';
+              } else {
+                displayStatus = '使用中';
+              }
+            }
+            
             return {
             id: item.id,
             reservationNo: item.reservationNo || `RES${item.id}`,
               parkingName: parkingName,
               parkingAddress: parkingAddress,
               spaceNumber: spaceNumber,
-            status: this.getStatusText(item.status),
+            status: displayStatus,
             paymentStatus: item.paymentStatus === 1 ? '已支付' : '未支付',
-            reserveTime: this.formatDateTimeRange(item.startTime, item.endTime),
-            createTime: this.formatDateTime(item.createdAt),
+            reserveTime: that.formatDateTimeRange(item.startTime, item.endTime),
+            createTime: that.formatDateTime(item.createdAt),
             amount: '0.00', // 实际应用中应从后端获取
-            actualStartTime: item.actualEntryTime ? this.formatDateTime(item.actualEntryTime) : null,
-            actualEndTime: item.actualExitTime ? this.formatDateTime(item.actualExitTime) : null
+            actualStartTime: item.actualEntryTime ? that.formatDateTime(item.actualEntryTime) : null,
+            actualEndTime: item.actualExitTime ? that.formatDateTime(item.actualExitTime) : null
             };
           });
           

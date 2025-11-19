@@ -14,9 +14,15 @@
   <!-- 预约详情 -->
   <view wx:if="{{!loading && !error && reservationDetail}}" class="detail-container">
     <!-- 状态卡片 -->
-    <view class="status-card" style="background-color: {{reservationDetail.status === '待使用' ? '#e6f4ff' : (reservationDetail.status === '已完成' ? '#f6ffed' : '#fff1f0')}};">
-      <text class="status-text" style="color: {{reservationDetail.status === '待使用' ? '#1677ff' : (reservationDetail.status === '已完成' ? '#00b42a' : '#f53f3f')}};">{{reservationDetail.status}}</text>
+    <view class="status-card" style="background-color: {{reservationDetail.status === '待使用' ? '#e6f4ff' : (reservationDetail.status === '使用中' ? '#e6f4ff' : (reservationDetail.status === '已完成' ? '#f6ffed' : '#fff1f0'))}};">
+      <text class="status-text" style="color: {{reservationDetail.status === '待使用' ? '#1677ff' : (reservationDetail.status === '使用中' ? '#4A90E2' : (reservationDetail.status === '已完成' ? '#00b42a' : '#f53f3f'))}};">{{reservationDetail.status}}</text>
       <text wx:if="{{reservationDetail.paymentStatus}}" class="payment-status" style="color: {{reservationDetail.paymentStatus === '已支付' ? '#00b42a' : '#1677ff'}};">{{reservationDetail.paymentStatus}}</text>
+    </view>
+
+    <!-- 倒计时显示（立即预约模式） -->
+    <view class="countdown-box" wx:if="{{isImmediateReservation && countdown > 0 && reservationDetail && reservationDetail.status === '待使用'}}">
+      <text class="countdown-label">请在以下时间内到达，超时将自动取消：</text>
+      <text class="countdown-time">{{countdownText}}</text>
     </view>
 
     <!-- 基本信息 -->
@@ -65,6 +71,7 @@
     <view class="action-buttons">
       <button wx:if="{{reservationDetail.status === '待使用' && reservationDetail.paymentStatus === '未支付'}}" bindtap="payOrder" class="pay-btn">立即支付</button>
       <button wx:if="{{reservationDetail.status === '待使用'}}" bindtap="cancelReservation" class="cancel-btn">取消预约</button>
+      <button wx:if="{{reservationDetail.status === '使用中'}}" bindtap="completeReservation" class="complete-btn">结束订单</button>
       <button bindtap="goBack" class="back-btn">返回</button>
     </view>
   </view>

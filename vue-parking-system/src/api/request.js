@@ -3,7 +3,7 @@ import { showErrorToast } from '../utils'
 
 // 创建axios实例
 const service = axios.create({
-  baseURL: 'http://172.20.10.5:8081', // 后端API基础URL（真机测试使用局域网IP）
+  baseURL: 'http://172.20.10.5:8082', // 后端API基础URL（真机测试使用局域网IP）
   timeout: 10000, // 请求超时时间
   headers: {
     'Content-Type': 'application/json'

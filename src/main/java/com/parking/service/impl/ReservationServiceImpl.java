@@ -336,51 +336,135 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean useReservation(Long id) {
-        ReservationEntity entity = this.getById(id);
-        if (entity == null) {
-            return false;
+        try {
+            System.out.println("========== 开始使用预约 ==========");
+            System.out.println("预约ID: " + id);
+            
+            ReservationEntity entity = this.getById(id);
+            if (entity == null) {
+                System.out.println("错误：预约不存在，ID: " + id);
+                return false;
+            }
+            
+            System.out.println("预约信息:");
+            System.out.println("  - ID: " + entity.getId());
+            System.out.println("  - 状态: " + entity.getStatus());
+            System.out.println("  - 开始时间: " + entity.getStartTime());
+            System.out.println("  - 结束时间: " + entity.getEndTime());
+            
+            // 检查预约是否有效
+            if (entity.getStatus() != ReservationEntity.ReservationStatus.PENDING.getCode()) {
+                System.out.println("状态验证失败：当前状态=" + entity.getStatus() + ", 期望状态=0(PENDING)");
+                throw new RuntimeException("预约状态无效，当前状态：" + entity.getStatus());
+            }
+            
+            if (new Date().after(entity.getEndTime())) {
+                System.out.println("预约已超时");
+                throw new RuntimeException("预约已超时");
+            }
+            
+            System.out.println("状态验证通过，开始更新...");
+            
+            // 使用UpdateWrapper更新，避免乐观锁问题
+            UpdateWrapper<ReservationEntity> updateWrapper = new UpdateWrapper<>();
+            updateWrapper.eq("id", entity.getId());
+            updateWrapper.set("status", ReservationEntity.ReservationStatus.USED.getCode());
+            updateWrapper.set("actual_entry_time", new Date());
+            updateWrapper.set("updated_at", new Date());
+            
+            boolean updateResult = this.update(updateWrapper);
+            
+            System.out.println("更新结果: " + updateResult);
+            
+            if (!updateResult) {
+                System.out.println("错误：更新预约状态失败");
+                return false;
+            }
+            
+            System.out.println("预约状态更新成功，状态已改为：已使用(1)");
+            System.out.println("========== 使用预约流程结束 ==========");
+            
+            return true;
+        } catch (Exception e) {
+            System.err.println("使用预约失败: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("使用预约失败: " + e.getMessage(), e);
         }
-        
-        // 检查预约是否有效
-        if (entity.getStatus() != ReservationEntity.ReservationStatus.PENDING.getCode()) {
-            throw new RuntimeException("预约状态无效");
-        }
-        
-        if (new Date().after(entity.getEndTime())) {
-            throw new RuntimeException("预约已超时");
-        }
-        
-        // 更新预约状态
-        entity.setStatus(ReservationEntity.ReservationStatus.USED.getCode());
-        entity.setActualEntryTime(new Date());
-        entity.setUpdatedAt(new Date());
-        
-        return this.updateById(entity);
     }
     
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean completeReservation(Long id) {
-        ReservationEntity entity = this.getById(id);
-        if (entity == null) {
-            return false;
+        try {
+            System.out.println("========== 开始完成预约 ==========");
+            System.out.println("预约ID: " + id);
+            
+            ReservationEntity entity = this.getById(id);
+            if (entity == null) {
+                System.out.println("错误：预约不存在，ID: " + id);
+                return false;
+            }
+            
+            System.out.println("预约信息:");
+            System.out.println("  - ID: " + entity.getId());
+            System.out.println("  - 状态: " + entity.getStatus());
+            System.out.println("  - 车位ID: " + entity.getParkingSpaceId());
+            
+            // 检查预约是否已使用
+            if (entity.getStatus() != ReservationEntity.ReservationStatus.USED.getCode()) {
+                System.out.println("状态验证失败：当前状态=" + entity.getStatus() + ", 期望状态=1(USED)");
+                throw new RuntimeException("预约尚未使用，当前状态：" + entity.getStatus());
+            }
+            
+            System.out.println("状态验证通过，开始更新...");
+            
+            // 使用UpdateWrapper更新，避免乐观锁问题
+            UpdateWrapper<ReservationEntity> updateWrapper = new UpdateWrapper<>();
+            updateWrapper.eq("id", entity.getId());
+            updateWrapper.set("actual_exit_time", new Date());
+            updateWrapper.set("updated_at", new Date());
+            
+            boolean updateResult = this.update(updateWrapper);
+            
+            System.out.println("预约更新结果: " + updateResult);
+            
+            if (!updateResult) {
+                System.out.println("错误：更新预约失败");
+                return false;
+            }
+            
+            // 释放车位（从占用状态2改为可用状态0）
+            System.out.println("开始释放车位，车位ID: " + entity.getParkingSpaceId());
+            try {
+                // 使用UpdateWrapper更新车位状态，避免乐观锁问题
+                com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ParkingSpaceEntity> spaceUpdateWrapper = 
+                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
+                spaceUpdateWrapper.eq("id", entity.getParkingSpaceId());
+                spaceUpdateWrapper.set("state", 0);
+                spaceUpdateWrapper.set("status", "AVAILABLE");
+                spaceUpdateWrapper.set("is_available", 1);
+                spaceUpdateWrapper.set("updated_at", java.time.LocalDateTime.now());
+                
+                int spaceUpdated = parkingSpaceMapper.update(null, spaceUpdateWrapper);
+                System.out.println("车位释放结果: " + spaceUpdated);
+                
+                if (spaceUpdated <= 0) {
+                    System.out.println("警告：车位释放失败，但预约已完成");
+                }
+            } catch (Exception e) {
+                System.err.println("释放车位时出错: " + e.getMessage());
+                // 不阻止预约完成，只记录错误
+            }
+            
+            System.out.println("预约完成成功");
+            System.out.println("========== 完成预约流程结束 ==========");
+            
+            return true;
+        } catch (Exception e) {
+            System.err.println("完成预约失败: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("完成预约失败: " + e.getMessage(), e);
         }
-        
-        // 检查预约是否已使用
-        if (entity.getStatus() != ReservationEntity.ReservationStatus.USED.getCode()) {
-            throw new RuntimeException("预约尚未使用");
-        }
-        
-        // 更新预约状态
-        entity.setActualExitTime(new Date());
-        entity.setUpdatedAt(new Date());
-        
-        boolean result = this.updateById(entity);
-        
-        // 释放车位
-        parkingSpaceMapper.updateState(entity.getParkingSpaceId(), 0, 2);
-        
-        return result;
     }
     
     @Override

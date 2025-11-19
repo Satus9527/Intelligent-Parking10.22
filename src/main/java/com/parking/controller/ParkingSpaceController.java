@@ -12,7 +12,7 @@ import java.util.List;
  * 车位管理控制器
  */
 @RestController
-@RequestMapping("/api/parking-spaces")
+@RequestMapping("/api/v1/parking-spaces")
 public class ParkingSpaceController {
     
     @Autowired

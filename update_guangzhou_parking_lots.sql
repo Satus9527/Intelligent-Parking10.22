@@ -6,8 +6,8 @@ USE parking_db;
 
 -- 清空现有停车场和车位数据（注意：这也会删除关联的预约记录）
 -- 如果不想删除预约记录，请注释掉下面的DELETE语句
--- DELETE FROM parking_space;
--- DELETE FROM parking_lot;
+DELETE FROM parking_space;
+DELETE FROM parking_lot;
 
 -- 更新现有停车场数据为广州地区停车场
 -- 如果ID已存在则更新，不存在则插入新记录

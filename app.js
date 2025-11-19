@@ -3,7 +3,7 @@ App({
   globalData: {
     userInfo: null,
     token: '',
-    apiBaseUrl: 'http://localhost:8081/api/v1',
+    apiBaseUrl: 'http://localhost:8082/api/v1',
     appConfig: {
       debug: true,
       timeout: 10000
@@ -54,7 +54,7 @@ App({
           if (res.code) {
             // 发送 res.code 到后台换取 openId, sessionKey, unionId
             wx.request({
-              url: `${this.globalData.apiBaseUrl}/auth/login`,
+              url: `${this.globalData.apiBaseUrl}/api/v1/auth/login`,
               method: 'POST',
               data: {
                 code: res.code

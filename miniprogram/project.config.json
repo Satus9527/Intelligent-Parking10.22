@@ -4,7 +4,7 @@
     "ignore": []
   },
   "setting": {
-    "urlCheck": true,
+    "urlCheck": false,  // 关闭域名校验，开发环境允许访问本地IP
     "es6": true,
     "enhance": true,
     "postcss": true,

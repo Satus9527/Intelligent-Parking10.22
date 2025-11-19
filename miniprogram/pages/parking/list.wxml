@@ -50,11 +50,11 @@
           <view class="parking-details">
             <view class="distance">{{item.distance}}km</view>
             <view class="area">{{item.area}}</view>
-            <view class="price">¥{{item.price}}/小时</view>
+            <view class="price">¥{{item.price}}元/小时</view>
             <view class="rating">⭐ {{item.rating}}</view>
           </view>
           <view class="available-spots">
-            <text class="available-count">{{item.availableSpots}}</text>
+            <text class="available-count">{{item.availableSpaces || item.availableSpots || 0}}</text>
             <text class="available-label">个空余车位</text>
           </view>
         </view>

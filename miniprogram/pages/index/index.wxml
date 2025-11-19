@@ -124,7 +124,7 @@
   </view>
   
   <!-- 预约详情卡片 -->
-  <view class="reservation-card" wx:if="{{latestReservation}}">
+  <view class="reservation-card" wx:if="{{latestReservation}}" bindtap="navigateToReservationDetail" data-id="{{latestReservation.id}}">
     <view class="reservation-content">
       <!-- 缩略图 -->
       <image class="reservation-thumbnail" wx:if="{{latestReservation.thumbnail}}" src="{{latestReservation.thumbnail}}" mode="aspectFill"></image>
@@ -146,17 +146,18 @@
         </view>
         
         <view class="reservation-detail-row">
-          <text class="detail-text">车位号: {{latestReservation.spaceNumber}}</text>
-          <text class="reservation-price">¥{{latestReservation.price}}</text>
+          <text class="detail-text">车位号: {{latestReservation.spaceNumber || '未知车位'}}</text>
+          <text class="reservation-price">¥{{latestReservation.price || '0.00'}}</text>
         </view>
       </view>
     </view>
     
     <!-- 操作按钮 -->
-    <view class="reservation-actions">
-      <button class="primary-action-btn" bindtap="unlockSpace" data-id="{{latestReservation.id}}" wx:if="{{latestReservation.status === '待使用'}}">解锁车位</button>
+    <view class="reservation-actions" catchtap="stopPropagation">
+      <button class="primary-action-btn" bindtap="unlockSpace" data-id="{{latestReservation.id}}" wx:if="{{latestReservation.status === '待使用' && !latestReservation.isUnlocked}}">立即解锁</button>
+      <view class="primary-action-btn unlocked-btn" wx:if="{{latestReservation.isUnlocked || latestReservation.status === '使用中'}}">已解锁</view>
       <view class="secondary-actions">
-        <button class="secondary-btn cancel-btn" bindtap="cancelReservation" data-id="{{latestReservation.id}}" wx:if="{{latestReservation.status === '待使用'}}">取消预约</button>
+        <button class="secondary-btn cancel-btn" bindtap="cancelReservation" data-id="{{latestReservation.id}}" wx:if="{{latestReservation.status === '待使用' && !latestReservation.isUnlocked}}">取消预约</button>
         <button class="secondary-btn navigate-btn" bindtap="navigateToParking" data-id="{{latestReservation.id}}">导航前往</button>
       </view>
     </view>

@@ -22,7 +22,21 @@ Page({
     // 车辆管理相关
     vehicles: [], // 用户已保存的车牌号列表
     showVehicleSelector: false, // 是否显示车牌选择器
-    selectedVehicleIndex: -1 // 选中的车辆索引
+    selectedVehicleIndex: -1, // 选中的车辆索引
+    // 预约模式相关
+    bookingMode: 'immediate', // 'immediate' 立即预约, 'scheduled' 选择时间
+    // 时间选择相关
+    startTime: '',
+    endTime: '',
+    // 倒计时相关
+    countdown: 0, // 倒计时秒数
+    countdownText: '10:00', // 倒计时显示文本
+    countdownTimer: null, // 倒计时定时器
+    currentReservationId: null, // 当前预约ID（用于倒计时）
+    // 时间选择器相关
+    timeRange: [[], []], // 日期和时间的范围
+    startTimeIndex: [0, 0],
+    endTimeIndex: [0, 0]
   },
   
   /**
@@ -72,6 +86,220 @@ Page({
         title: this.data.parkingDetails.name
       });
     }
+  },
+
+  /**
+   * 初始化时间选择器数据
+   */
+  initTimeRange() {
+    const dates = [];
+    const times = [];
+    
+    // 生成未来7天的日期
+    const now = new Date();
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(now);
+      date.setDate(now.getDate() + i);
+      const dateStr = `${date.getMonth() + 1}月${date.getDate()}日`;
+      dates.push(dateStr);
+    }
+    
+    // 生成24小时的时间（每30分钟一个选项）
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        times.push(timeStr);
+      }
+    }
+    
+    this.setData({
+      timeRange: [dates, times]
+    });
+  },
+
+  /**
+   * 切换预约模式
+   */
+  switchBookingMode(e) {
+    const mode = e.currentTarget.dataset.mode;
+    this.setData({
+      bookingMode: mode
+    });
+    
+    if (mode === 'scheduled' && this.data.timeRange[0].length === 0) {
+      this.initTimeRange();
+    }
+  },
+
+  /**
+   * 开始时间选择
+   */
+  onStartTimeChange(e) {
+    const [dateIndex, timeIndex] = e.detail.value;
+    const date = this.data.timeRange[0][dateIndex];
+    const time = this.data.timeRange[1][timeIndex];
+    
+    // 构建完整的日期时间字符串
+    const now = new Date();
+    const selectedDate = new Date(now);
+    selectedDate.setDate(now.getDate() + dateIndex);
+    const [hours, minutes] = time.split(':');
+    selectedDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    
+    this.setData({
+      startTime: `${date} ${time}`,
+      startTimeIndex: [dateIndex, timeIndex]
+    });
+  },
+
+  /**
+   * 结束时间选择
+   */
+  onEndTimeChange(e) {
+    const [dateIndex, timeIndex] = e.detail.value;
+    const date = this.data.timeRange[0][dateIndex];
+    const time = this.data.timeRange[1][timeIndex];
+    
+    this.setData({
+      endTime: `${date} ${time}`,
+      endTimeIndex: [dateIndex, timeIndex]
+    });
+  },
+
+  /**
+   * 格式化倒计时显示
+   */
+  formatCountdown(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  },
+
+  /**
+   * 开始倒计时
+   */
+  startCountdown(reservationId) {
+    // 清除之前的倒计时
+    if (this.data.countdownTimer) {
+      clearInterval(this.data.countdownTimer);
+    }
+    
+    // 设置10分钟倒计时（600秒）
+    let countdown = 600;
+    this.setData({
+      countdown: countdown,
+      currentReservationId: reservationId
+    });
+    
+    // 每秒更新倒计时
+    const timer = setInterval(() => {
+      countdown--;
+      const minutes = Math.floor(countdown / 60);
+      const secs = countdown % 60;
+      const countdownText = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      
+      this.setData({
+        countdown: countdown,
+        countdownText: countdownText
+      });
+      
+      // 倒计时结束，自动取消预约
+      if (countdown <= 0) {
+        clearInterval(timer);
+        this.autoCancelReservation(reservationId);
+      }
+    }, 1000);
+    
+    // 初始化倒计时文本
+    this.setData({
+      countdownText: '10:00'
+    });
+    
+    this.setData({
+      countdownTimer: timer
+    });
+  },
+
+  /**
+   * 停止倒计时
+   */
+  stopCountdown() {
+    if (this.data.countdownTimer) {
+      clearInterval(this.data.countdownTimer);
+      this.setData({
+        countdownTimer: null,
+        countdown: 0,
+        countdownText: '10:00',
+        currentReservationId: null
+      });
+    }
+  },
+
+  /**
+   * 解析选择的时间字符串为Date对象
+   */
+  parseSelectedTime(timeStr) {
+    // 格式：如 "12月25日 14:30"
+    const match = timeStr.match(/(\d+)月(\d+)日\s+(\d+):(\d+)/);
+    if (!match) {
+      return new Date();
+    }
+    
+    const month = parseInt(match[1]) - 1; // 月份从0开始
+    const day = parseInt(match[2]);
+    const hour = parseInt(match[3]);
+    const minute = parseInt(match[4]);
+    
+    const now = new Date();
+    const year = now.getFullYear();
+    const date = new Date(year, month, day, hour, minute, 0, 0);
+    
+    // 如果选择的日期是明年，调整年份
+    if (date < now && month < now.getMonth()) {
+      date.setFullYear(year + 1);
+    }
+    
+    return date;
+  },
+
+  /**
+   * 自动取消预约（超时）
+   */
+  autoCancelReservation(reservationId) {
+    const app = getApp();
+    wx.showModal({
+      title: '预约超时',
+      content: '预约已超时，将自动取消',
+      showCancel: false,
+      success: () => {
+        wx.request({
+          url: `${app.globalData.apiBaseUrl}/api/v1/reservations/${reservationId}/cancel`,
+          method: 'POST',
+          header: { 'Authorization': `Bearer ${app.globalData.token}` },
+          success: (res) => {
+            if (res.statusCode === 200) {
+              wx.showToast({
+                title: '预约已自动取消',
+                icon: 'none'
+              });
+              // 清除倒计时
+              this.stopCountdown();
+            }
+          },
+          fail: () => {
+            console.error('自动取消预约失败');
+          }
+        });
+      }
+    });
+  },
+
+  /**
+   * 生命周期函数--监听页面卸载
+   */
+  onUnload() {
+    // 清除倒计时
+    this.stopCountdown();
   },
 
   /**
@@ -260,7 +488,7 @@ Page({
     console.log('加载车位数据，停车场ID:', backendParkingId);
     
     wx.request({
-      url: `${app.globalData.apiBaseUrl}/api/parking-spaces/available`,
+      url: `${app.globalData.apiBaseUrl}/api/v1/parking-spaces/available`,
       method: 'GET',
       data: {
         parkingId: backendParkingId // 使用数字ID
@@ -623,26 +851,68 @@ Page({
     // 构建预约请求数据
     // 根据后端ReservationCreateRequestDTO的要求：只需要 parkingSpaceId，不需要 parkingId
     const now = new Date();
+    let startTime, endTime;
+    
+    // 根据预约模式设置时间
+    if (this.data.bookingMode === 'immediate') {
+      // 立即预约：使用当前时间作为开始时间，2小时后作为结束时间
+      startTime = formatDateForBackend(now);
+      endTime = formatDateForBackend(new Date(now.getTime() + 2 * 60 * 60 * 1000));
+    } else {
+      // 选择时间模式：验证时间是否已选择
+      if (!this.data.startTime || !this.data.endTime) {
+        wx.showToast({
+          title: '请选择预约时间',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 解析选择的时间
+      const startDate = this.parseSelectedTime(this.data.startTime);
+      const endDate = this.parseSelectedTime(this.data.endTime);
+      
+      // 验证时间
+      if (startDate >= endDate) {
+        wx.showToast({
+          title: '结束时间必须晚于开始时间',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      if (startDate < now) {
+        wx.showToast({
+          title: '开始时间不能早于当前时间',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      startTime = formatDateForBackend(startDate);
+      endTime = formatDateForBackend(endDate);
+    }
+    
     const reservationData = {
       parkingSpaceId: spaceId, // 已确保是数字类型，后端会从车位信息中获取 parkingId
       plateNumber: bookingInfo.vehicleNumber,
       contactPhone: bookingInfo.contactPhone || '13800138000', // 优先使用用户输入
       vehicleInfo: '', // 车辆信息（选填）
       remark: '', // 备注（选填）
-      startTime: formatDateForBackend(now),
-      endTime: formatDateForBackend(new Date(now.getTime() + 2 * 60 * 60 * 1000))
+      startTime: startTime,
+      endTime: endTime
     };
     
     // 添加更多调试信息
     console.log('API Base URL:', app.globalData.apiBaseUrl);
-    console.log('完整API URL:', `${app.globalData.apiBaseUrl}/api/reservations`);
+    console.log('完整API URL:', `${app.globalData.apiBaseUrl}/api/v1/reservations`);
     console.log('预约请求数据:', JSON.stringify(reservationData));
     
     wx.showLoading({ title: '提交预约中...' });
     
     // 调用后端API创建预约
     wx.request({
-      url: `${app.globalData.apiBaseUrl}/api/reservations`,
+      url: `${app.globalData.apiBaseUrl}/api/v1/reservations`,
       method: 'POST',
       data: reservationData,
       header: {
@@ -655,14 +925,29 @@ Page({
         console.log('预约请求成功:', res);
         
         if (res.statusCode === 200 && res.data) {
+          const reservationId = res.data.id || res.data;
+          const that = this;
+          
+          // 如果是立即预约模式，保存到本地存储，以便预约详情页识别（使用不同的键，避免与解锁状态混淆）
+          if (that.data.bookingMode === 'immediate') {
+            try {
+              const immediateReservations = wx.getStorageSync('immediateReservations') || {};
+              immediateReservations[reservationId] = true;
+              wx.setStorageSync('immediateReservations', immediateReservations);
+            } catch (e) {
+              console.error('保存立即预约标记失败:', e);
+            }
+          }
+          
           wx.showToast({
             title: '预约成功',
             icon: 'success'
           });
           
           // 跳转至预约详情页面，使用真实的预约ID
+          // 倒计时将在预约详情页面启动
           wx.navigateTo({
-            url: `/pages/reservation/detail?id=${res.data.id || res.data}`
+            url: `/pages/reservation/detail?id=${reservationId}`
           });
         } else {
           // 更详细的错误信息展示

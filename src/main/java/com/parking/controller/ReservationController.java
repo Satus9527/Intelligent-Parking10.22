@@ -16,7 +16,7 @@ import java.util.HashMap;
  * 预约管理控制器
  */
 @RestController
-@RequestMapping("/api/reservations")
+@RequestMapping("/api/v1/reservations")
 public class ReservationController {
     
     @Autowired

@@ -1,126 +1,226 @@
-// pages/parking/list.js
+// miniprogram/pages/parking/list.js
+const app = getApp(); // 务必获取小程序实例
+
 Page({
   data: {
-    parkingList: [], // 用于存储停车场列表数据
-    loading: true,   // 加载状态
-    error: false,    // 错误状态
-    errorMsg: ''     // 错误信息
+    parkingList: [], // 停车场列表数据
+    searchKeyword: '', // 搜索关键词
+    sortType: 'distance', // 排序类型
+    loading: false, // 加载状态
+    hasMore: true, // 是否有更多数据
+    page: 1, // 当前页码
+    pageSize: 10, // 每页数量
+    areaList: [], // 区域列表
+    selectedArea: '' // 选中的区域
   },
 
   onLoad() {
-    // 页面加载时获取数据
-    this.getNearbyParkings();
+    console.log("停车场页面 onLoad 执行");
+    this.loadAreaList();
+    this.loadParkingData();
   },
 
-  // 获取附近停车场
-  getNearbyParkings() {
-    // 1. 先获取用户地理位置（附近停车场需要经纬度）
-    wx.getLocation({
-      type: 'gcj02', // 高德地图坐标系（与后端一致）
-      success: (res) => {
-        const { latitude, longitude } = res;
-        // 2. 调用后端接口
-        wx.request({
-          url: 'http://localhost:8081/api/v1/parking/nearby', // 后端接口地址
-          method: 'GET',
-          data: {
-            latitude: latitude,
-            longitude: longitude,
-            radius: 2000 // 搜索半径（米）
-          },
-          success: (result) => {
-            if (result.statusCode === 200) {
-              // 成功获取数据，更新到页面
-              this.setData({
-                parkingList: result.data.data || [], // 假设后端返回格式为 {code:200, data: [...]} 
-                loading: false
-              });
-              wx.stopPullDownRefresh(); // 数据加载完成后停止下拉刷新
-            } else {
-              this.setError('获取停车场失败');
-              wx.stopPullDownRefresh();
-            }
-          },
-          fail: () => {
-            this.setError('网络错误，请重试');
-            wx.stopPullDownRefresh();
-          }
-        });
+  // 加载区域列表
+  loadAreaList() {
+    app.request({
+      url: '/api/v1/parking/nearby', // ✅ 确保路径正确
+      method: 'GET',
+      data: {
+        longitude: 113.3248,
+        latitude: 23.1288,
+        radius: 50000
       },
-      fail: () => {
-        this.setError('请授权地理位置权限');
-        wx.stopPullDownRefresh();
+      showError: false
+    }).then(res => {
+      let allParkings = this.extractData(res);
+      
+      if (allParkings.length > 0) {
+        // 提取唯一的区域
+        const districts = [...new Set(allParkings
+          .map(p => p.district || p.area)
+          .filter(d => d && d.trim() !== ''))];
+        
+        // 热门区域排序
+        const hotDistricts = ['天河区', '越秀区', '海珠区', '荔湾区', '白云区', '番禺区', '黄埔区'];
+        const sortedDistricts = districts.sort((a, b) => {
+          const indexA = hotDistricts.indexOf(a);
+          const indexB = hotDistricts.indexOf(b);
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+          return a.localeCompare(b, 'zh-CN');
+        });
+        
+        this.setData({ 
+          areaList: sortedDistricts.length > 0 ? sortedDistricts : ['天河区', '越秀区', '海珠区']
+        });
       }
+    }).catch(err => {
+      console.error('加载区域列表失败:', err);
+      // 失败时提供默认选项
+      this.setData({ areaList: ['天河区', '越秀区', '海珠区'] });
     });
   },
 
-  // 处理错误状态
-  setError(msg) {
-    this.setData({
-      loading: false,
-      error: true,
-      errorMsg: msg
-    });
-  },
-
-  // 点击"重试"按钮时触发，处理地理位置权限重新授权
-  retryGetLocation() {
-    // 1. 先检查当前地理位置权限状态
-    wx.getSetting({
-      success: (res) => {
-        // 2. 判断用户是否已拒绝授权（未授权）
-        if (!res.authSetting['scope.userLocation']) {
-          // 3. 第一次申请时，直接发起授权请求
-          if (res.authSetting['scope.userLocation'] === undefined) {
-            this.getNearbyParkings(); // 调用之前的获取位置方法（会触发授权弹窗）
-          } else {
-            // 4. 用户已拒绝过授权，需引导到设置页手动开启
-            wx.showModal({
-              title: '需要地理位置权限',
-              content: '请在设置中开启地理位置权限，以便查询附近停车场',
-              confirmText: '去设置',
-              cancelText: '取消',
-              success: (modalRes) => {
-                if (modalRes.confirm) {
-                  // 打开小程序设置页
-                  wx.openSetting({
-                    success: (settingRes) => {
-                      // 用户在设置页开启权限后，重新获取位置
-                      if (settingRes.authSetting['scope.userLocation']) {
-                        this.getNearbyParkings();
-                      }
-                    }
-                  });
-                }
-              }
-            });
-          }
-        } else {
-          // 已授权但仍失败，直接重试
-          this.getNearbyParkings();
+  // 加载停车场数据（核心修复部分）
+  loadParkingData() {
+    this.setData({ loading: true });
+    
+    const requestData = {
+      longitude: 113.3248,
+      latitude: 23.1288,
+      radius: 50000
+    };
+    
+    if (this.data.selectedArea) {
+      requestData.district = this.data.selectedArea;
+    }
+    
+    return app.request({
+      url: '/api/v1/parking/nearby', // ✅ 确保路径正确
+      method: 'GET',
+      data: requestData,
+      showError: true
+    }).then(res => {
+      let allParkings = this.extractData(res);
+      console.log('获取到停车场数据:', allParkings.length);
+      
+      // ========== 数据处理核心逻辑 (修复显示问题) ==========
+      let processedParkings = allParkings.map(parking => {
+        // 1. 提取价格数字（处理可能包含单位的字符串，如 "10元/小时" 或 "10"）
+        let hourlyRate = 0;
+        if (parking.hourlyRate !== undefined && parking.hourlyRate !== null) {
+          const rateStr = String(parking.hourlyRate);
+          // 提取字符串中的第一个数字（包括小数）
+          const match = rateStr.match(/(\d+\.?\d*)/);
+          hourlyRate = match ? parseFloat(match[1]) : 0;
         }
+        
+        // 2. 确保车位数正确（即使为0也要显示）
+        const availableNum = Number(parking.availableSpaces) || 0;
+        
+        return {
+          id: Number(parking.id) || 0,
+          name: parking.name || '未命名停车场',
+          address: parking.address || '',
+          area: parking.district || parking.area || '',
+          distance: Number(parking.distance) || 0,
+          
+          // 【修复1：价格】使用纯数字，配合 WXML 中的 "¥{{item.hourlyRate}}元/小时"
+          price: hourlyRate,       
+          hourlyRate: hourlyRate, 
+          
+          // 【修复2：车位数】确保即使为0也能正确显示
+          availableSpaces: availableNum,
+          availableSpots: availableNum,
+          
+          totalSpaces: Number(parking.totalSpaces) || 0,
+          rating: 4.5,
+          status: parking.status || 1
+        };
+      });
+      // =================================================
+      
+      // 前端搜索过滤
+      if (this.data.searchKeyword) {
+        const keyword = this.data.searchKeyword.toLowerCase();
+        processedParkings = processedParkings.filter(p => 
+          p.name.toLowerCase().includes(keyword) ||
+          p.address.toLowerCase().includes(keyword)
+        );
       }
+      
+      // 排序逻辑
+      switch (this.data.sortType) {
+        case 'distance':
+          processedParkings.sort((a, b) => a.distance - b.distance);
+          break;
+        case 'price':
+          processedParkings.sort((a, b) => a.hourlyRate - b.hourlyRate);
+          break;
+        case 'rating':
+          processedParkings.sort((a, b) => b.rating - a.rating);
+          break;
+      }
+      
+      // 分页逻辑
+      const page = this.data.page;
+      const pageSize = this.data.pageSize;
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      const paginatedList = processedParkings.slice(start, end);
+      
+      let newList = [];
+      if (page === 1) {
+        newList = paginatedList;
+      } else {
+        newList = [...this.data.parkingList, ...paginatedList];
+      }
+      
+      this.setData({
+        parkingList: newList,
+        loading: false,
+        hasMore: end < processedParkings.length
+      });
+    }).catch(err => {
+      console.error('加载停车场数据失败:', err);
+      this.setData({ loading: false, parkingList: [] });
     });
   },
 
-  // 跳转到停车场详情页
-  goToDetail(e) {
+  // 辅助方法：提取接口数据
+  extractData(res) {
+    if (Array.isArray(res)) return res;
+    if (res.data && Array.isArray(res.data)) return res.data;
+    if (res.success && res.data && Array.isArray(res.data)) return res.data;
+    return [];
+  },
+
+  // 搜索输入
+  onSearchInput(e) {
+    const keyword = e.detail.value;
+    this.setData({ searchKeyword: keyword, page: 1 });
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => { this.loadParkingData(); }, 300);
+  },
+
+  // 切换排序
+  setSortType(e) {
+    this.setData({ sortType: e.currentTarget.dataset.type, page: 1 });
+    this.loadParkingData();
+  },
+
+  // 切换区域
+  setArea(e) {
+    const area = e.currentTarget.dataset.area;
+    this.setData({ selectedArea: area === this.data.selectedArea ? '' : area, page: 1 });
+    this.loadParkingData();
+  },
+
+  // 跳转详情
+  navigateToDetail(e) {
     const id = e.currentTarget.dataset.id;
-    wx.navigateTo({
-      url: `/pages/parking/detail?id=${id}`
-    });
+    wx.navigateTo({ url: `/pages/parking/detail?id=${id}` });
   },
 
-  /**
-   * 页面相关事件处理函数--监听用户下拉动作
-   */
+  // 加载更多
+  loadMore() {
+    if (!this.data.loading && this.data.hasMore) {
+      this.setData({ page: this.data.page + 1 });
+      this.loadParkingData();
+    }
+  },
+
+  // 下拉刷新
   onPullDownRefresh() {
-    // 重新加载数据
-    this.setData({
-      loading: true,
-      error: false
-    });
-    this.getNearbyParkings();
-    // wx.stopPullDownRefresh() 已移至 getNearbyParkings 方法中
+    this.setData({ page: 1 });
+    this.loadParkingData()
+      .then(() => wx.stopPullDownRefresh())
+      .catch(() => wx.stopPullDownRefresh());
+  },
+
+  // 触底加载
+  onReachBottom() {
+    this.loadMore();
   }
-})
+});

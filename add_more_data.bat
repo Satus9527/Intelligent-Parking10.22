@@ -6,7 +6,7 @@ echo ========================================
 echo.
 
 REM 设置MySQL路径（根据你的实际安装路径修改）
-set MYSQL_PATH=E:\MySQL\bin
+set MYSQL_PATH=D:\MySQL\bin
 set SQL_FILE=%~dp0add_more_lots.sql
 
 echo 正在检查MySQL路径...

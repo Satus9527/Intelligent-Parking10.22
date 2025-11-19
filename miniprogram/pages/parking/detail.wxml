@@ -148,6 +148,53 @@
     <view class="detail-section">
       <view class="section-title">预约信息</view>
       <view class="booking-form">
+        <!-- 预约模式选择 -->
+        <view class="form-item">
+          <text class="form-label">预约方式</text>
+          <view class="mode-selector-card">
+            <view class="mode-selector">
+              <view class="mode-option {{bookingMode === 'immediate' ? 'active' : ''}}" 
+                    bindtap="switchBookingMode" 
+                    data-mode="immediate">
+                <text>立即预约</text>
+              </view>
+              <view class="mode-option {{bookingMode === 'scheduled' ? 'active' : ''}}" 
+                    bindtap="switchBookingMode" 
+                    data-mode="scheduled">
+                <text>选择时间</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 时间选择（选择时间模式） -->
+        <view wx:if="{{bookingMode === 'scheduled'}}" class="time-selector-group">
+          <view class="form-item">
+            <text class="form-label">开始时间</text>
+            <picker mode="multiSelector" 
+                    range="{{timeRange}}" 
+                    value="{{startTimeIndex}}" 
+                    bindchange="onStartTimeChange">
+              <view class="time-picker">
+                <text>{{startTime || '请选择开始时间'}}</text>
+                <text class="arrow-icon">></text>
+              </view>
+            </picker>
+          </view>
+          <view class="form-item">
+            <text class="form-label">结束时间</text>
+            <picker mode="multiSelector" 
+                    range="{{timeRange}}" 
+                    value="{{endTimeIndex}}" 
+                    bindchange="onEndTimeChange">
+              <view class="time-picker">
+                <text>{{endTime || '请选择结束时间'}}</text>
+                <text class="arrow-icon">></text>
+              </view>
+            </picker>
+          </view>
+        </view>
+        
         <view class="form-item">
           <text class="form-label">车牌号</text>
           <view class="vehicle-selector" bindtap="openVehicleSelector">
@@ -184,7 +231,9 @@
 
     <!-- 底部预约按钮 -->
     <view class="bottom-actions">
-      <button class="book-btn" bindtap="submitBooking">立即预约</button>
+      <button class="book-btn" bindtap="submitBooking">
+        {{bookingMode === 'immediate' ? '立即预约' : '确认预约'}}
+      </button>
     </view>
   </scroll-view>
 </view>

@@ -73,7 +73,7 @@ elif [ "$ENV" = "test" ]; then
     cat > "$DEPLOY_DIR/application.properties" << EOF
 spring.profiles.active=test
 logging.level.root=DEBUG
-server.port=8081
+server.port=8082
 EOF
 else
     echo -e "${GREEN}配置开发环境属性...${NC}"

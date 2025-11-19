@@ -148,21 +148,36 @@ Page({
       console.log('获取到停车场数据:', allParkings.length, '个停车场', '区域筛选:', that.data.selectedArea || '全部');
       
       // 处理数据，确保格式统一并转换ID为数字
-      let processedParkings = allParkings.map(parking => ({
-        id: Number(parking.id) || 0, // 关键：确保ID是数字
-        name: parking.name || '未命名停车场',
-        address: parking.address || '',
-        area: parking.district || parking.area || '', // 使用district字段，兼容area
-        district: parking.district || '', // 保存district字段
-        distance: parking.distance || 0,
-        totalSpaces: Number(parking.totalSpaces) || 0,
-        availableSpaces: Number(parking.availableSpaces) || 0,
-        hourlyRate: Number(parking.hourlyRate) || 0,
-        pricePerHour: Number(parking.hourlyRate) || 0,
-        price: `${Number(parking.hourlyRate) || 0}元/小时`,
-        rating: 4.5, // 如果需要评分，可以从数据库获取
-        status: parking.status || 1
-      }));
+      let processedParkings = allParkings.map(parking => {
+        // 提取价格数字（处理可能包含单位的字符串，如 "10元/小时" 或 "10"）
+        let hourlyRate = 0;
+        if (parking.hourlyRate !== undefined && parking.hourlyRate !== null) {
+          const rateStr = String(parking.hourlyRate);
+          // 提取字符串中的第一个数字（包括小数）
+          const match = rateStr.match(/(\d+\.?\d*)/);
+          hourlyRate = match ? parseFloat(match[1]) : 0;
+        }
+        
+        // 确保车位数正确（即使为0也要显示）
+        const availableNum = Number(parking.availableSpaces) || 0;
+        
+        return {
+          id: Number(parking.id) || 0, // 关键：确保ID是数字
+          name: parking.name || '未命名停车场',
+          address: parking.address || '',
+          area: parking.district || parking.area || '', // 使用district字段，兼容area
+          district: parking.district || '', // 保存district字段
+          distance: parking.distance || 0,
+          totalSpaces: Number(parking.totalSpaces) || 0,
+          availableSpaces: availableNum, // 修复：确保车位数正确
+          availableSpots: availableNum, // 兼容字段名
+          hourlyRate: hourlyRate, // 修复：使用纯数字
+          pricePerHour: hourlyRate,
+          price: hourlyRate, // 修复：使用纯数字，WXML中会添加单位
+          rating: 4.5, // 如果需要评分，可以从数据库获取
+          status: parking.status || 1
+        };
+      });
       
       // 前端搜索过滤（如果有关键词）
       if (that.data.searchKeyword) {
