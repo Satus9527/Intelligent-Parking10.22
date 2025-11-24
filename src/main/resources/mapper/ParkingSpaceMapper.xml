@@ -200,7 +200,7 @@
             category,
             state,
             hourly_rate AS hourlyRate,
-            daily_rate AS dailyRate,
+            daily_rate AS DailyRate,
             description,
             image_url AS imageUrl,
             is_available AS isAvailable,
@@ -210,5 +210,13 @@
             updated_at AS updatedAt
         FROM parking_space 
         WHERE floor = #{floor}
+    </select>
+    
+    <!-- 统计当前系统中可用的空车位数量 -->
+    <select id="countAvailableSpaces" resultType="int">
+        SELECT COUNT(*)
+        FROM parking_space
+        WHERE (state = 0 OR status = 'AVAILABLE' OR (status IS NULL AND state IS NULL))
+          AND (is_available = 1 OR is_available IS NULL)
     </select>
 </mapper>

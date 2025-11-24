@@ -3,6 +3,7 @@ package com.parking.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -21,5 +22,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 这将为所有控制器方法提供@RequestAttribute("userId")
         registry.addInterceptor(simpleUserIdInterceptor)
                 .addPathPatterns("/**"); // 拦截所有路径
+    }
+
+    /**
+     * 静态资源映射配置
+     * 将 /images/** 映射到后端 classpath:/static/images/，用于托管前端大图资源
+     */
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/images/**")
+                .addResourceLocations("classpath:/static/images/");
     }
 }

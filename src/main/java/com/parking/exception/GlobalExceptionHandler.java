@@ -22,7 +22,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ParkingException.class)
     @ResponseBody
     public ResponseEntity<ResultDTO> handleParkingException(ParkingException ex, WebRequest request) {
-        ResultDTO result = ResultDTO.fail(ex.getMessage());
+        ResultDTO result = ResultDTO.fail(ex.getMessage(), ex.getCode());
         return new ResponseEntity<>(result, HttpStatus.BAD_REQUEST);
     }
     

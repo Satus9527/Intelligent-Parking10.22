@@ -51,5 +51,5 @@ iflytek:
     appid: 7cd98dd6
     api-key: 778da35a3baa3d16282719d195a5a83d
     api-secret: NTBiNGFlNmFjZmFiZGVmNTU4YjlmNGY0
-    # 讯飞星火 v4.0 WSS 地址
-    chat-url: wss://spark-api.xf-yun.com/v4.0/chat
+    # 讯飞星火 v3.5 WSS 地址
+    chat-url: wss://spark-api.xf-yun.com/v3.5/chat

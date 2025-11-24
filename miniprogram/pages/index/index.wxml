@@ -15,7 +15,7 @@
       <text class="icon-clear" wx:if="{{searchKeyword}}" bindtap="clearSearch">×</text>
       <!-- 语音按钮 -->
       <view class="voice-btn" bindtap="startVoiceRecognition">
-        <text class="voice-icon">🎤</text>
+        <image class="voice-icon" src="/images/icon-robot.svg" mode="aspectFit"></image>
       </view>
     </view>
   </view>
@@ -29,7 +29,8 @@
       </view>
       
       <view class="voice-recording-area">
-        <view class="voice-recording-circle {{isRecording ? 'recording' : ''}}">
+        <view class="voice-recording-circle">
+          <image class="bobo-svg {{isRecording ? 'recording' : ''}}" src="/images/bobo-smile.svg" mode="aspectFit"></image>
           <text class="voice-recording-text">{{isRecording ? '正在录音...' : '点击开始说话'}}</text>
         </view>
         <view class="voice-recognition-text" wx:if="{{recognitionText}}">

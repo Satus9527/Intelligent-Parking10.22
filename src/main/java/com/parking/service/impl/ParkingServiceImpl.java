@@ -111,9 +111,21 @@ public class ParkingServiceImpl implements ParkingService {
             try {
                 System.out.println("========== 查询停车场列表 ==========");
                 System.out.println("区域参数: " + (district != null ? district : "全部"));
+                System.out.println("区域参数类型: " + (district != null ? district.getClass().getName() : "null"));
+                System.out.println("区域参数长度: " + (district != null ? district.length() : 0));
+                if (district != null) {
+                    System.out.println("区域参数内容: [" + district + "]");
+                }
                 parkings = reservationMapper.selectAllParkingLots(district);
                 long queryTime = System.currentTimeMillis() - startTime;
                 System.out.println("数据库查询成功 (区域: " + (district != null ? district : "全部") + "), 找到 " + (parkings != null ? parkings.size() : 0) + " 个停车场, 耗时: " + queryTime + "ms");
+                if (parkings != null && !parkings.isEmpty()) {
+                    System.out.println("返回的停车场列表（前3个）:");
+                    for (int i = 0; i < Math.min(3, parkings.size()); i++) {
+                        Map<String, Object> p = parkings.get(i);
+                        System.out.println("  - ID: " + p.get("id") + ", 名称: " + p.get("name") + ", 区域: " + p.get("district"));
+                    }
+                }
                 
                 // 如果查询时间超过5秒，记录警告
                 if (queryTime > 5000) {

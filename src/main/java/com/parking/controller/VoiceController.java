@@ -29,9 +29,9 @@ public class VoiceController {
      */
     @PostMapping("/process")
     public ResponseEntity<VoiceCommandResult> processVoiceCommand(
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody Map<String, Object> requestBody) {
         
-        String command = requestBody.get("command");
+        String command = (String) requestBody.get("command");
         if (command == null || command.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(
                 VoiceCommandResult.fail("语音指令不能为空")
@@ -42,16 +42,31 @@ public class VoiceController {
         Long userId = 1L; // 默认用户ID
         if (requestBody.containsKey("userId")) {
             try {
-                userId = Long.parseLong(requestBody.get("userId"));
+                Object userIdObj = requestBody.get("userId");
+                if (userIdObj instanceof String) {
+                    userId = Long.parseLong((String) userIdObj);
+                } else if (userIdObj instanceof Number) {
+                    userId = ((Number) userIdObj).longValue();
+                }
             } catch (NumberFormatException e) {
                 // 如果解析失败，使用默认值
+            }
+        }
+        
+        // 获取对话历史
+        java.util.List<Map<String, Object>> conversationHistory = null;
+        if (requestBody.containsKey("conversationHistory")) {
+            Object historyObj = requestBody.get("conversationHistory");
+            if (historyObj instanceof java.util.List) {
+                conversationHistory = (java.util.List<Map<String, Object>>) historyObj;
+                System.out.println("收到对话历史，共 " + conversationHistory.size() + " 条");
             }
         }
         
         System.out.println("收到语音指令: " + command + ", userId: " + userId);
         
         try {
-            VoiceCommandResult result = voiceService.processVoiceCommand(command, userId);
+            VoiceCommandResult result = voiceService.processVoiceCommand(command, userId, conversationHistory);
             System.out.println("语音指令处理成功: " + result.getMessage());
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -120,7 +135,7 @@ public class VoiceController {
         Map<String, Object> result = new HashMap<>();
         try {
             System.out.println("========== 开始测试讯飞API连接 ==========");
-            String testResponse = chatService.getChatResponse("你好");
+            String testResponse = chatService.getChatResponse("你好", null);
             result.put("success", true);
             result.put("message", "讯飞API连接成功");
             result.put("response", testResponse);
@@ -181,5 +196,54 @@ public class VoiceController {
             e.printStackTrace();
         }
         return ResponseEntity.ok(result);
+    }
+    
+    /**
+     * 上传音频文件进行语音识别（用于原生录音API）
+     * 注意：当前实现仅返回提示信息，因为需要集成第三方语音识别服务
+     * 建议使用微信同声传译插件，它可以直接返回识别文本
+     */
+    @PostMapping("/upload")
+    public ResponseEntity<Map<String, Object>> uploadAudio(
+            @RequestParam("audio") org.springframework.web.multipart.MultipartFile audioFile,
+            @RequestParam(value = "format", defaultValue = "mp3") String format) {
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        System.out.println("========== 收到音频上传请求 ==========");
+        System.out.println("文件名: " + (audioFile != null ? audioFile.getOriginalFilename() : "null"));
+        System.out.println("文件大小: " + (audioFile != null ? audioFile.getSize() : 0) + " 字节");
+        System.out.println("格式: " + format);
+        
+        try {
+            if (audioFile == null || audioFile.isEmpty()) {
+                result.put("status", "error");
+                result.put("message", "音频文件不能为空");
+                System.err.println("错误: 音频文件为空");
+                return ResponseEntity.badRequest().body(result);
+            }
+            
+            // 注意：当前后端没有集成语音识别服务（如讯飞语音识别API）
+            // 建议使用微信同声传译插件，它可以直接返回识别文本
+            // 如果需要使用原生录音API，需要：
+            // 1. 集成讯飞语音识别API或其他语音识别服务
+            // 2. 将音频文件转换为识别服务需要的格式
+            // 3. 调用识别服务获取文本
+            
+            result.put("status", "error");
+            result.put("message", "当前后端未集成语音识别服务。请使用微信同声传译插件，或联系开发人员集成语音识别API。");
+            
+            System.err.println("警告: 音频上传接口被调用，但后端未集成语音识别服务");
+            System.err.println("建议: 使用微信同声传译插件（WechatSI），它可以直接返回识别文本");
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            System.err.println("处理音频上传时发生异常: " + e.getMessage());
+            e.printStackTrace();
+            result.put("status", "error");
+            result.put("message", "处理音频文件失败: " + e.getMessage());
+            return ResponseEntity.ok(result);
+        }
     }
 }

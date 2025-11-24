@@ -2,6 +2,7 @@ package com.parking.model.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
@@ -44,6 +45,12 @@ public class ReservationEntity {
      * 预约状态（0-待使用，1-已使用，2-已取消，3-已超时）
      */
     private Integer status;
+    
+    /**
+     * 支付状态（0-未支付，1-已支付）
+     */
+    @TableField("payment_status")
+    private Integer paymentStatus;
     
     /**
      * 退款状态（0-无退款，1-退款中，2-退款成功，3-退款失败）

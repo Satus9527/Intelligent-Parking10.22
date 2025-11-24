@@ -101,4 +101,26 @@ public interface ReservationMapper extends BaseMapper<ReservationEntity> {
      * @return 停车场列表
      */
     List<java.util.Map<String, Object>> searchParkingLots(@Param("keyword") String keyword);
+    
+    /**
+     * 更新停车场车位数（预约后减少）
+     * @param parkingId 停车场ID
+     * @return 更新结果
+     */
+    int decreaseParkingLotSpaces(@Param("parkingId") Long parkingId);
+    
+    /**
+     * 更新停车场车位数（取消预约或支付成功后增加）
+     * @param parkingId 停车场ID
+     * @return 更新结果
+     */
+    int increaseParkingLotSpaces(@Param("parkingId") Long parkingId);
+
+    /**
+     * 查询用户最新的一条未支付预约（用于限制新预约）
+     * 通常指 status = 1(已使用，待支付) 且 payment_status = 0
+     * @param userId 用户ID
+     * @return 未支付预约ID，如果不存在则为null
+     */
+    Long findLatestUnpaidReservationByUser(@Param("userId") Long userId);
 }

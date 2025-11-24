@@ -75,4 +75,10 @@ public interface ParkingSpaceMapper extends BaseMapper<ParkingSpaceEntity> {
      * @return 车位列表
      */
     List<ParkingSpaceEntity> selectByFloor(@Param("floor") String floor);
+    
+    /**
+     * 统计当前系统中可用的空车位数量
+     * 可用于给大模型提供实时数据（例如在线客服回答“现在还有多少车位？”）
+     */
+    int countAvailableSpaces();
 }

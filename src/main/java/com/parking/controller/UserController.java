@@ -38,10 +38,17 @@ public class UserController {
      */
     @PutMapping("/info")
     public UserDTO updateUserInfo(@RequestBody UserDTO userDTO, @RequestAttribute("userId") Long currentUserId) {
-        // 确保用户只能更新自己的信息
-        if (!userDTO.getId().equals(currentUserId)) {
-            throw new RuntimeException("无权更新其他用户信息");
-        }
+        System.out.println("========== 更新用户信息 ==========");
+        System.out.println("前端传递的用户ID: " + userDTO.getId());
+        System.out.println("拦截器设置的当前用户ID: " + currentUserId);
+        
+        // 强制使用当前登录用户的ID，避免前端传递错误的ID
+        // 先设置ID，确保后续逻辑使用正确的用户ID
+        userDTO.setId(currentUserId);
+        
+        System.out.println("最终使用的用户ID: " + userDTO.getId());
+        System.out.println("要更新的车牌号: " + userDTO.getLicensePlate());
+        
         return userService.updateUserInfo(userDTO);
     }
     

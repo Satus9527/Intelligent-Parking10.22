@@ -1,5 +1,6 @@
 // 不再需要导入模拟数据工具，现在直接从后端API获取真实数据
 // import { searchParkings, getAvailableAreas } from '../../utils/dataUtils';
+const { getParkingImage } = require('../../utils/parkingImageUtils');
 
 Page({
   data: {
@@ -11,15 +12,51 @@ Page({
     page: 1, // 当前页码
     pageSize: 10, // 每页数量
     areaList: [], // 区域列表
-    selectedArea: '' // 选中的区域
+    selectedArea: '', // 选中的区域
+    imageBaseUrl: '' // 图片基础URL
   },
 
-  onLoad() {
-    console.log("停车场页面 onLoad 执行");
+  // 根据停车场数据生成一个稳定但不完全相同的评分（3.6 ~ 4.9）
+  getParkingRating(parking) {
+    // 如果后端已经提供了评分字段，优先使用
+    if (typeof parking.rating === 'number' && parking.rating > 0) {
+      return Number(parking.rating.toFixed(1));
+    }
+
+    const idNum = Number(parking.id) || Number(parking.parkingId) || 0;
+    // 使用停车场ID和可用车位简单生成一个稳定的伪随机评分
+    const base = 3.6 + ((idNum % 14) / 10); // 3.6 ~ 4.9
+    return Number(Math.min(4.9, Math.max(3.6, base)).toFixed(1));
+  },
+
+  onLoad(options) {
+    console.log("停车场页面 onLoad 执行", options);
+
+    // 获取图片基础URL
+    const app = getApp();
+    this.setData({
+      imageBaseUrl: app.globalData.imageBaseUrl || 'http://172.20.10.5:8082/images'
+    });
+
     // 加载区域列表
     this.loadAreaList();
-    // 初始化加载停车场数据
+    // 初始化加载停车场数据（首次无搜索条件）
     this.loadParkingData();
+  },
+
+  onShow() {
+    // 从首页搜索跳转过来时，关键字存放在全局
+    const app = getApp();
+    const globalKeyword = (app.globalData && app.globalData.searchKeywordFromIndex) || '';
+
+    if (globalKeyword && globalKeyword !== this.data.searchKeyword) {
+      this.setData({
+        searchKeyword: globalKeyword,
+        page: 1
+      });
+      // 使用新的关键字重新加载数据
+      this.loadParkingData();
+    }
   },
 
   // 加载区域列表（从后端API获取所有可用的行政区）
@@ -137,15 +174,22 @@ Page({
     }).then(res => {
       // 检查响应数据是否为数组或包含data数组
       let allParkings = [];
+      console.log('API响应数据:', res);
+      
       if (Array.isArray(res)) {
         allParkings = res;
       } else if (res.data && Array.isArray(res.data)) {
         allParkings = res.data;
       } else if (res.success && res.data && Array.isArray(res.data)) {
         allParkings = res.data;
+      } else if (res.code === 200 && res.data && Array.isArray(res.data)) {
+        allParkings = res.data;
       }
       
       console.log('获取到停车场数据:', allParkings.length, '个停车场', '区域筛选:', that.data.selectedArea || '全部');
+      console.log('停车场列表:', allParkings);
+      
+      const app = getApp();
       
       // 处理数据，确保格式统一并转换ID为数字
       let processedParkings = allParkings.map(parking => {
@@ -161,6 +205,13 @@ Page({
         // 确保车位数正确（即使为0也要显示）
         const availableNum = Number(parking.availableSpaces) || 0;
         
+        // 获取停车场图片（先拿相对路径，再拼接全路径）
+        const relativeImagePath = getParkingImage(parking.id, parking.name); // 如：/taiguhui.jpg
+        // 确保图片URL是完整的网络地址
+        const parkingImage = relativeImagePath 
+          ? `${app.globalData.imageBaseUrl}${relativeImagePath}` 
+          : `${app.globalData.imageBaseUrl}/taiguhui.jpg`; // 使用默认图片
+        
         return {
           id: Number(parking.id) || 0, // 关键：确保ID是数字
           name: parking.name || '未命名停车场',
@@ -174,8 +225,9 @@ Page({
           hourlyRate: hourlyRate, // 修复：使用纯数字
           pricePerHour: hourlyRate,
           price: hourlyRate, // 修复：使用纯数字，WXML中会添加单位
-          rating: 4.5, // 如果需要评分，可以从数据库获取
-          status: parking.status || 1
+          rating: this.getParkingRating(parking),
+          status: parking.status || 1,
+          imageUrl: parkingImage // 使用后端托管的完整图片URL
         };
       });
       
@@ -303,5 +355,23 @@ Page({
   onReachBottom() {
     // 触底加载更多
     this.loadMore();
+  },
+
+  // 图片加载失败处理
+  onImageError(e) {
+    const index = e.currentTarget.dataset.index;
+    const app = getApp();
+    const parkingList = this.data.parkingList;
+    
+    if (parkingList[index]) {
+      // 如果图片加载失败，使用默认图片（网络路径）
+      const imageBaseUrl = this.data.imageBaseUrl || app.globalData.imageBaseUrl || 'http://172.20.10.5:8082/images';
+      const defaultImage = `${imageBaseUrl}/parking.png`;
+      parkingList[index].imageUrl = defaultImage;
+      this.setData({
+        parkingList: parkingList
+      });
+      console.log('图片加载失败，已切换到默认图片:', defaultImage);
+    }
   }
 });

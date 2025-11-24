@@ -203,7 +203,7 @@
   margin-top: 24px;
 }
 
-.pay-btn, .cancel-btn, .back-btn {
+.pay-btn, .cancel-btn, .back-btn, .complete-btn {
   padding: 14px 0;
   font-size: 16px;
   border-radius: 12px;
@@ -236,6 +236,19 @@
 .cancel-btn:active, .back-btn:active {
   background: rgba(255, 255, 255, 0.9);
   transform: scale(0.98);
+}
+
+/* 结束订单按钮 - 更突出但保持柔和风格 */
+.complete-btn {
+  background: linear-gradient(90deg, #ff9f43, #ff6b6b);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.35);
+}
+
+.complete-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.25);
 }
 
 /* 响应式调整 */

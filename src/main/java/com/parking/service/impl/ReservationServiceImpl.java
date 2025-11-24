@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.parking.exception.ParkingException;
+
 /**
  * 预约服务实现类
  */
@@ -51,6 +53,21 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
             if (user == null) {
                 throw new RuntimeException("用户不存在，请先登录或注册");
             }
+        }
+
+        // 限制：如果存在“待支付”订单，则不允许创建新的预约
+        // 这里通过 payment_status = 0 且 status = 1 的记录来判断
+        try {
+            Long unpaidReservationId = reservationMapper.findLatestUnpaidReservationByUser(userId);
+            if (unpaidReservationId != null) {
+                // 使用业务异常，并用特殊前缀携带预约ID，方便前端解析并跳转
+                throw new ParkingException(409, "UNPAID_ORDER:" + unpaidReservationId);
+            }
+        } catch (ParkingException e) {
+            throw e;
+        } catch (Exception e) {
+            System.err.println("检查未支付预约失败: " + e.getMessage());
+            // 检查失败不阻止预约，但记录日志
         }
         
         // 验证车位是否存在并获取车位信息
@@ -175,6 +192,20 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         
         System.out.println("预约创建成功，预约ID: " + entity.getId());
         
+        // 更新停车场的可用车位数和总车位数（减1）
+        try {
+            int updated = reservationMapper.decreaseParkingLotSpaces(parkingId);
+            if (updated > 0) {
+                System.out.println("停车场车位数更新成功，停车场ID: " + parkingId);
+            } else {
+                System.out.println("警告：停车场车位数更新失败，可能车位数已为0，停车场ID: " + parkingId);
+            }
+        } catch (Exception e) {
+            System.err.println("更新停车场车位数失败: " + e.getMessage());
+            e.printStackTrace();
+            // 不阻止预约流程，只记录错误日志
+        }
+        
         return convertToDTO(entity);
     }
     
@@ -296,6 +327,20 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                     
                     if (updated > 0) {
                         System.out.println("车位释放成功");
+                        
+                        // 增加停车场的可用车位数和总车位数（+1）
+                        try {
+                            int parkingUpdated = reservationMapper.increaseParkingLotSpaces(entity.getParkingId());
+                            if (parkingUpdated > 0) {
+                                System.out.println("停车场车位数还原成功，停车场ID: " + entity.getParkingId());
+                            } else {
+                                System.out.println("警告：停车场车位数还原失败，停车场ID: " + entity.getParkingId());
+                            }
+                        } catch (Exception e) {
+                            System.err.println("更新停车场车位数失败: " + e.getMessage());
+                            e.printStackTrace();
+                            // 不阻止取消预约流程，只记录错误日志
+                        }
                     } else {
                         System.out.println("警告：车位更新返回0，可能车位不存在或状态未变化");
                     }
@@ -358,6 +403,13 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                 throw new RuntimeException("预约状态无效，当前状态：" + entity.getStatus());
             }
             
+            // 新规则：只有到开始时间之后才能解锁/使用预约
+            Date now = new Date();
+            if (entity.getStartTime() != null && now.before(entity.getStartTime())) {
+                System.out.println("预约尚未开始，当前时间: " + now + "，开始时间: " + entity.getStartTime());
+                throw new ParkingException(400, "NOT_STARTED:预约尚未开始，暂时不能解锁");
+            }
+            
             if (new Date().after(entity.getEndTime())) {
                 System.out.println("预约已超时");
                 throw new RuntimeException("预约已超时");
@@ -411,18 +463,32 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
             System.out.println("  - 车位ID: " + entity.getParkingSpaceId());
             
             // 检查预约是否已使用
+            // 只有USED状态（1）才能结束订单，PENDING状态（0）需要先解锁（调用use接口）
             if (entity.getStatus() != ReservationEntity.ReservationStatus.USED.getCode()) {
                 System.out.println("状态验证失败：当前状态=" + entity.getStatus() + ", 期望状态=1(USED)");
-                throw new RuntimeException("预约尚未使用，当前状态：" + entity.getStatus());
+                String statusDesc;
+                if (entity.getStatus() == ReservationEntity.ReservationStatus.PENDING.getCode()) {
+                    statusDesc = "待使用（请先点击'立即解锁'）";
+                } else if (entity.getStatus() == ReservationEntity.ReservationStatus.CANCELLED.getCode()) {
+                    statusDesc = "已取消";
+                } else if (entity.getStatus() == ReservationEntity.ReservationStatus.TIMEOUT.getCode()) {
+                    statusDesc = "已超时";
+                } else {
+                    statusDesc = "未知状态";
+                }
+                throw new RuntimeException("订单未使用，当前状态：" + statusDesc);
             }
             
             System.out.println("状态验证通过，开始更新...");
             
-            // 使用UpdateWrapper更新，避免乐观锁问题
+            // 使用UpdateWrapper更新，只添加结束时间，不改变状态
+            // 结束订单后状态变为"待支付"，支付成功后才会变为"已完成"
             UpdateWrapper<ReservationEntity> updateWrapper = new UpdateWrapper<>();
             updateWrapper.eq("id", entity.getId());
-            updateWrapper.set("actual_exit_time", new Date());
+            updateWrapper.set("end_time", new Date()); // 设置预约结束时间
+            updateWrapper.set("actual_exit_time", new Date()); // 设置实际出场时间
             updateWrapper.set("updated_at", new Date());
+            // 注意：不改变status，保持为1（已使用），也不释放车位（等支付完成后再释放）
             
             boolean updateResult = this.update(updateWrapper);
             
@@ -433,30 +499,7 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                 return false;
             }
             
-            // 释放车位（从占用状态2改为可用状态0）
-            System.out.println("开始释放车位，车位ID: " + entity.getParkingSpaceId());
-            try {
-                // 使用UpdateWrapper更新车位状态，避免乐观锁问题
-                com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ParkingSpaceEntity> spaceUpdateWrapper = 
-                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
-                spaceUpdateWrapper.eq("id", entity.getParkingSpaceId());
-                spaceUpdateWrapper.set("state", 0);
-                spaceUpdateWrapper.set("status", "AVAILABLE");
-                spaceUpdateWrapper.set("is_available", 1);
-                spaceUpdateWrapper.set("updated_at", java.time.LocalDateTime.now());
-                
-                int spaceUpdated = parkingSpaceMapper.update(null, spaceUpdateWrapper);
-                System.out.println("车位释放结果: " + spaceUpdated);
-                
-                if (spaceUpdated <= 0) {
-                    System.out.println("警告：车位释放失败，但预约已完成");
-                }
-            } catch (Exception e) {
-                System.err.println("释放车位时出错: " + e.getMessage());
-                // 不阻止预约完成，只记录错误
-            }
-            
-            System.out.println("预约完成成功");
+            System.out.println("订单已结束，等待支付。状态保持为：已使用(1)，支付状态：未支付(0)");
             System.out.println("========== 完成预约流程结束 ==========");
             
             return true;
@@ -533,6 +576,11 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
             if (entity == null) {
                 System.out.println("预约不存在，ID: " + id);
                 return null;
+            }
+            
+            // 确保 paymentStatus 有默认值（如果数据库中没有该字段或为NULL）
+            if (entity.getPaymentStatus() == null) {
+                entity.setPaymentStatus(0); // 默认为未支付
             }
             
             ReservationDTO dto = convertToDTO(entity);
@@ -717,13 +765,69 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         try {
             ReservationEntity entity = reservationMapper.selectById(reservationId);
             if (entity == null) {
+                System.out.println("预约不存在，ID: " + reservationId);
                 return false;
             }
             
-            entity.setRefundStatus(paymentStatus);
-            entity.setUpdatedAt(new Date());
+            System.out.println("开始更新支付状态，预约ID: " + reservationId + ", 支付状态: " + paymentStatus);
+            System.out.println("当前预约状态: " + entity.getStatus() + ", 当前支付状态: " + entity.getPaymentStatus());
             
-            return reservationMapper.updateById(entity) > 0;
+            // 使用UpdateWrapper更新，确保字段映射正确（使用数据库列名）
+            UpdateWrapper<ReservationEntity> updateWrapper = new UpdateWrapper<>();
+            updateWrapper.eq("id", reservationId);
+            updateWrapper.set("payment_status", paymentStatus);
+            updateWrapper.set("updated_at", new Date());
+            
+            boolean updateResult = this.update(updateWrapper);
+            System.out.println("支付状态更新结果: " + updateResult);
+            
+            if (!updateResult) {
+                System.err.println("警告：支付状态更新失败，预约ID: " + reservationId);
+                return false;
+            }
+            
+            // 如果支付成功（paymentStatus = 1），释放车位
+            if (paymentStatus == 1 && entity.getStatus() == ReservationEntity.ReservationStatus.USED.getCode()) {
+                System.out.println("支付成功，开始释放车位，车位ID: " + entity.getParkingSpaceId());
+                try {
+                    // 使用UpdateWrapper更新车位状态，避免乐观锁问题
+                    com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ParkingSpaceEntity> spaceUpdateWrapper = 
+                        new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
+                    spaceUpdateWrapper.eq("id", entity.getParkingSpaceId());
+                    spaceUpdateWrapper.set("state", 0);
+                    spaceUpdateWrapper.set("status", "AVAILABLE");
+                    spaceUpdateWrapper.set("is_available", 1);
+                    spaceUpdateWrapper.set("updated_at", java.time.LocalDateTime.now());
+                    
+                    int spaceUpdated = parkingSpaceMapper.update(null, spaceUpdateWrapper);
+                    System.out.println("车位释放结果: " + spaceUpdated);
+                    
+                    if (spaceUpdated > 0) {
+                        System.out.println("车位释放成功");
+                        
+                        // 增加停车场的可用车位数和总车位数（+1）
+                        try {
+                            int parkingUpdated = reservationMapper.increaseParkingLotSpaces(entity.getParkingId());
+                            if (parkingUpdated > 0) {
+                                System.out.println("停车场车位数还原成功，停车场ID: " + entity.getParkingId());
+                            } else {
+                                System.out.println("警告：停车场车位数还原失败，停车场ID: " + entity.getParkingId());
+                            }
+                        } catch (Exception e) {
+                            System.err.println("更新停车场车位数失败: " + e.getMessage());
+                            e.printStackTrace();
+                            // 不阻止支付流程，只记录错误日志
+                        }
+                    } else {
+                        System.out.println("警告：车位释放失败，但支付状态已更新");
+                    }
+                } catch (Exception e) {
+                    System.err.println("释放车位时出错: " + e.getMessage());
+                    // 不阻止支付状态更新，只记录错误
+                }
+            }
+            
+            return updateResult;
         } catch (Exception e) {
             throw new RuntimeException("更新支付状态失败", e);
         }
@@ -813,6 +917,13 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                         break;
                     }
                 }
+            }
+            
+            // 设置支付状态（确保正确复制）
+            if (entity.getPaymentStatus() != null) {
+                dto.setPaymentStatus(entity.getPaymentStatus());
+            } else {
+                dto.setPaymentStatus(0); // 默认为未支付
             }
             
             // 设置退款状态描述
