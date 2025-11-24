@@ -7,7 +7,12 @@
     "pages/reservation/index",
     "pages/reservation/detail",
     "pages/user/profile",
+    "pages/user/profile-edit",
+    "pages/user/about",
+    "pages/user/online-service",
     "pages/user/reservations",
+    "pages/user/vehicles",
+    "pages/user/favorites",
     "pages/voice/voice"
   ],
   "window": {
@@ -53,9 +58,6 @@
   "permission": {
     "scope.userLocation": {
       "desc": "需要获取您的位置信息以推荐附近的停车场"
-    },
-    "scope.record": {
-      "desc": "您的声音将用于智能语音预约"
     }
   },
   "requiredPrivateInfos": [

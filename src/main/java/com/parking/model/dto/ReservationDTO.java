@@ -45,6 +45,11 @@ public class ReservationDTO {
     private String statusDesc;
     
     /**
+     * 支付状态（0-未支付，1-已支付）
+     */
+    private Integer paymentStatus;
+    
+    /**
      * 退款状态（0-无退款，1-退款中，2-退款成功，3-退款失败）
      */
     private Integer refundStatus;

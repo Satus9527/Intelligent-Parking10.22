@@ -72,27 +72,43 @@ Page({
               }
             }
             
-            // 从本地存储读取解锁状态
-            let isUnlocked = false;
-            try {
-              const unlockedReservations = wx.getStorageSync('unlockedReservations') || {};
-              isUnlocked = unlockedReservations[item.id] === true;
-            } catch (e) {
-              console.error('读取解锁状态失败:', e);
-            }
-            
-            // 根据原始状态和解锁状态确定显示状态
-            let displayStatus = that.getStatusText(item.status);
-            if (item.status === 0 && isUnlocked) {
-              // 如果后端状态是待使用（0）且已解锁，显示为"使用中"
-              displayStatus = '使用中';
+            // 根据状态设计规则确定显示状态：
+            // 状态 0（待使用）+ 未解锁 → "待使用"
+            // 状态 1（已使用）+ 无结束时间 → "使用中"
+            // 状态 1（已使用）+ 有结束时间 + 未支付 → "待支付"
+            // 状态 1（已使用）+ 有结束时间 + 已支付 → "已完成"
+            // 状态 2（已取消）→ "已取消"
+            // 状态 3（已超时）→ "已超时"
+            let displayStatus = '待使用';
+            if (item.status === 0) {
+              // 状态 0（待使用）：显示"待使用"（解锁后状态会变为1，所以状态0时总是未解锁）
+              displayStatus = '待使用';
             } else if (item.status === 1) {
-              // 已使用状态：如果有结束时间则显示"已完成"，否则显示"使用中"
+              // 状态 1（已使用）：根据是否有实际结束时间（actualExitTime）和支付状态判断
+              // 注意：只检查 actualExitTime（实际出场时间），不检查 endTime（预约预订结束时间）
               if (item.actualExitTime) {
-                displayStatus = '已完成';
+                // 有实际结束时间：根据支付状态判断
+                const paymentStatus = item.paymentStatus !== undefined ? item.paymentStatus : 0; // 默认为未支付
+                if (paymentStatus === 1) {
+                  // 已支付 → "已完成"
+                  displayStatus = '已完成';
+                } else {
+                  // 未支付 → "待支付"
+                  displayStatus = '待支付';
+                }
               } else {
+                // 无实际结束时间 → "使用中"
                 displayStatus = '使用中';
               }
+            } else if (item.status === 2) {
+              // 状态 2（已取消）→ "已取消"
+              displayStatus = '已取消';
+            } else if (item.status === 3) {
+              // 状态 3（已超时）→ "已超时"
+              displayStatus = '已超时';
+            } else {
+              // 其他未知状态
+              displayStatus = that.getStatusText(item.status);
             }
             
             return {
@@ -102,7 +118,8 @@ Page({
               parkingAddress: parkingAddress,
               spaceNumber: spaceNumber,
             status: displayStatus,
-            paymentStatus: item.paymentStatus === 1 ? '已支付' : '未支付',
+            // 已取消和已超时订单不显示支付状态
+            paymentStatus: (displayStatus === '已取消' || displayStatus === '已超时') ? null : (item.paymentStatus === 1 ? '已支付' : '未支付'),
             reserveTime: that.formatDateTimeRange(item.startTime, item.endTime),
             createTime: that.formatDateTime(item.createdAt),
             amount: '0.00', // 实际应用中应从后端获取

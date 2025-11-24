@@ -2,6 +2,8 @@
 import { groupSpacesBySection } from '../../utils/dataUtils';
 // 不再需要 getParkingById，改为从后端API获取真实数据
 
+const { getParkingImage } = require('../../utils/parkingImageUtils');
+
 Page({
 
   /**
@@ -53,6 +55,8 @@ Page({
    * 生命周期函数--监听页面加载
    */
   onLoad(options) {
+    const app = getApp();
+    
     if (options.id) {
       // 关键修复：直接使用数字ID，不再需要映射
       const parkingId = Number(options.id);
@@ -66,10 +70,24 @@ Page({
         return;
       }
       
-      this.setData({
+      // 先检查收藏状态
+      const isFavorite = this.checkIfFavorite(parkingId);
+      
+      const newData = {
         parkingId: parkingId, // 直接使用数字ID
-        backendParkingId: parkingId // 保存后端ID（现在就是前端ID）
-      });
+        backendParkingId: parkingId, // 保存后端ID（现在就是前端ID）
+        isFavorite: isFavorite
+      };
+
+      // 如果是语音预约跳转过来，尝试读取预填数据中的车位ID，后续在车位加载完成后直接使用
+      if (options.fromVoice === '1' && app.globalData && app.globalData.voiceReservationPrefill) {
+        const prefill = app.globalData.voiceReservationPrefill;
+        if (prefill && prefill.spaceId) {
+          newData.selectedSpaceId = prefill.spaceId;
+        }
+      }
+
+      this.setData(newData);
       
       // 合并加载停车场详情和车位信息，减少UI更新次数
       this.loadAllPageData();
@@ -111,9 +129,31 @@ Page({
         times.push(timeStr);
       }
     }
+
+    // 默认选中：当前时间向上取整到最近的半小时，如果超出当天最后一个时间段则跳到明天 00:00
+    let dateIndex = 0;
+    const slotMinutes = 30;
+    const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
+    let timeIndex = Math.floor(minutesSinceMidnight / slotMinutes);
+    if (minutesSinceMidnight % slotMinutes !== 0) {
+      timeIndex += 1;
+    }
+    const slotsPerDay = (24 * 60) / slotMinutes; // 48
+    if (timeIndex >= slotsPerDay) {
+      dateIndex = 1;
+      timeIndex = 0;
+    }
+    if (dateIndex >= dates.length) {
+      dateIndex = dates.length - 1;
+    }
+
+    const defaultDateStr = dates[dateIndex];
+    const defaultTimeStr = times[timeIndex];
     
     this.setData({
-      timeRange: [dates, times]
+      timeRange: [dates, times],
+      startTimeIndex: [dateIndex, timeIndex],
+      startTime: `${defaultDateStr} ${defaultTimeStr}`
     });
   },
 
@@ -135,9 +175,25 @@ Page({
    * 开始时间选择
    */
   onStartTimeChange(e) {
-    const [dateIndex, timeIndex] = e.detail.value;
-    const date = this.data.timeRange[0][dateIndex];
-    const time = this.data.timeRange[1][timeIndex];
+    // 兜底：如果时间范围还没初始化，先初始化一次
+    if (!this.data.timeRange || !this.data.timeRange[0] || !this.data.timeRange[1]) {
+      this.initTimeRange();
+    }
+
+    let [dateIndex, timeIndex] = e.detail.value || [0, 0];
+    const dates = this.data.timeRange[0] || [];
+    const times = this.data.timeRange[1] || [];
+
+    if (dateIndex >= dates.length) dateIndex = dates.length - 1;
+    if (dateIndex < 0) dateIndex = 0;
+    if (timeIndex >= times.length) timeIndex = times.length - 1;
+    if (timeIndex < 0) timeIndex = 0;
+
+    const date = dates[dateIndex] || '';
+    const time = times[timeIndex] || '';
+    if (!date || !time) {
+      return;
+    }
     
     // 构建完整的日期时间字符串
     const now = new Date();
@@ -156,14 +212,7 @@ Page({
    * 结束时间选择
    */
   onEndTimeChange(e) {
-    const [dateIndex, timeIndex] = e.detail.value;
-    const date = this.data.timeRange[0][dateIndex];
-    const time = this.data.timeRange[1][timeIndex];
-    
-    this.setData({
-      endTime: `${date} ${time}`,
-      endTimeIndex: [dateIndex, timeIndex]
-    });
+    // 已不再需要单独选择结束时间，保留空实现以兼容可能存在的绑定
   },
 
   /**
@@ -233,6 +282,19 @@ Page({
         currentReservationId: null
       });
     }
+  },
+
+  /**
+   * 根据停车场数据生成一个稳定但略有差异的评分（3.6 ~ 4.9）
+   */
+  getParkingRating(parking) {
+    // 如果后端已经有评分字段，优先使用
+    if (parking && typeof parking.rating === 'number' && parking.rating > 0) {
+      return Number(parking.rating.toFixed(1));
+    }
+    const idNum = Number(parking && parking.id) || Number(parking && parking.parkingId) || 0;
+    const base = 3.6 + ((idNum % 14) / 10); // 3.6 ~ 4.9
+    return Number(Math.min(4.9, Math.max(3.6, base)).toFixed(1));
   },
 
   /**
@@ -308,6 +370,12 @@ Page({
   onShow() {
     // 重置状态标记
     this.isUpdatingSelection = false;
+    
+    // 更新收藏状态（从其他页面返回时可能已改变）
+    if (this.data.parkingId) {
+      const isFavorite = this.checkIfFavorite(this.data.parkingId);
+      this.setData({ isFavorite });
+    }
     
     // 只重置选中的车位，不再重新加载整个页面数据，避免闪烁
     if (this.data.selectedSpaceId) {
@@ -403,21 +471,47 @@ Page({
             return;
           }
           
+          // 从地址中提取行政区域的辅助函数
+          const extractDistrictFromAddress = (address) => {
+            if (!address) return null;
+            // 广州市的行政区列表
+            const districts = ['天河区', '越秀区', '海珠区', '荔湾区', '白云区', '番禺区', '黄埔区', '花都区', '南沙区', '从化区', '增城区'];
+            for (const district of districts) {
+              if (address.includes(district)) {
+                return district;
+              }
+            }
+            return null;
+          };
+          
+          // 获取行政区域：优先使用 district 字段，其次从地址中提取
+          const district = parkingData.district || parkingData.area || extractDistrictFromAddress(parkingData.address) || '未知区域';
+          
+          // 获取停车场图片（相对路径转为完整 URL）
+          const app = getApp();
+          const relativeImagePath = getParkingImage(parkingData.id, parkingData.name); // 如：/parking.png
+          const parkingImage = relativeImagePath 
+            ? `${app.globalData.imageBaseUrl}${relativeImagePath}` 
+            : `${app.globalData.imageBaseUrl}/parking.png`;
+          // 生成停车场评分（如果后端未提供评分字段，则根据ID生成一个稳定的伪随机评分）
+          const rating = that.getParkingRating(parkingData);
+          
           // 处理停车场详情数据
           const parkingDetails = {
             id: Number(parkingData.id),
             name: parkingData.name || '未命名停车场',
             address: parkingData.address || '',
-            area: parkingData.area || '未知区域',
+            area: district,
             description: `${parkingData.name || '未命名停车场'}提供便捷的停车服务，环境舒适，设施齐全。`,
             price: `${Number(parkingData.hourlyRate) || 0}元/小时`,
             pricePerHour: Number(parkingData.hourlyRate) || 0,
-            rating: 4.5, // 如果需要评分，可以从数据库获取
+            rating: rating,
             totalSpaces: Number(parkingData.totalSpaces) || 0,
             availableSpaces: Number(parkingData.availableSpaces) || 0,
             openingHours: parkingData.operatingHours || '全天24小时',
             features: ['监控系统', '免费WiFi'], // 如果需要，可以从数据库获取
-            images: [], // 图片列表，如果后端有图片URL可以从parkingData中获取
+            images: parkingImage ? [parkingImage] : [], // 图片列表（完整 URL）
+            imageUrl: parkingImage, // 单张图片URL（完整 URL）
             contactPhone: parkingData.contactPhone || '暂无联系电话',
             latitude: Number(parkingData.latitude) || 23.1288,
             longitude: Number(parkingData.longitude) || 113.3248,
@@ -426,10 +520,14 @@ Page({
           
           console.log('成功加载停车场详情:', parkingDetails.name);
         
+          // 检查是否已收藏
+          const isFavorite = that.checkIfFavorite(backendParkingId);
+          
           // 一次性更新停车场详情，然后加载车位数据
           that.setData({
             parkingDetails: parkingDetails,
-          loading: false
+            isFavorite: isFavorite,
+            loading: false
         });
           
           // 调用真实API获取车位数据
@@ -565,6 +663,15 @@ Page({
           this.setData({
             availableSpaces: processedSpaces,
             groupedSpaces: groupedSpaces
+          }, () => {
+            // 如果是语音预约预先设置了 selectedSpaceId，在车位加载完成后给出提示
+            if (this.data.selectedSpaceId) {
+              wx.showToast({
+                title: '已为您选好推荐车位',
+                icon: 'success',
+                duration: 1200
+              });
+            }
           });
         } else {
           console.error('获取车位数据失败:', res);
@@ -592,26 +699,40 @@ Page({
    * 加载用户车辆信息
    */
   loadUserVehicles() {
-    // 模拟从本地存储或API获取用户车辆信息
-    // 在实际应用中，这里应该调用API获取用户已保存的车辆列表
+    // 优先从本地存储获取用户真实保存的车辆信息
+    try {
+      const storedVehicles = wx.getStorageSync('userVehicles') || [];
+
+      if (storedVehicles.length > 0) {
+        // 已有用户车辆数据，直接使用
+        this.setData({
+          vehicles: storedVehicles
+        });
+
+        // 如果只有一辆车，自动选中
+        if (storedVehicles.length === 1) {
+          this.setData({
+            'bookingInfo.vehicleNumber': storedVehicles[0].plateNumber,
+            'bookingInfo.vehicleId': storedVehicles[0].id,
+            selectedVehicleIndex: 0
+          });
+        }
+      } else {
+        // 本地还没有任何车牌时，才使用示例数据做初始化（可选）
     const mockVehicles = [
       { id: '1', plateNumber: '京A12345', type: '小型轿车' },
       { id: '2', plateNumber: '京B54321', type: '小型SUV' }
     ];
     
-    // 存储到本地（模拟用户保存）
     wx.setStorageSync('userVehicles', mockVehicles);
-    
     this.setData({
       vehicles: mockVehicles
     });
-    
-    // 如果用户只有一辆车，自动选中
-    if (mockVehicles.length === 1) {
+      }
+    } catch (e) {
+      console.error('加载用户车辆信息失败:', e);
       this.setData({
-        'bookingInfo.vehicleNumber': mockVehicles[0].plateNumber,
-        'bookingInfo.vehicleId': mockVehicles[0].id,
-        selectedVehicleIndex: 0
+        vehicles: []
       });
     }
   },
@@ -859,28 +980,19 @@ Page({
       startTime = formatDateForBackend(now);
       endTime = formatDateForBackend(new Date(now.getTime() + 2 * 60 * 60 * 1000));
     } else {
-      // 选择时间模式：验证时间是否已选择
-      if (!this.data.startTime || !this.data.endTime) {
+      // 选择时间模式：只选择开始时间，系统自动以2小时作为默认时长
+      if (!this.data.startTime) {
         wx.showToast({
-          title: '请选择预约时间',
+          title: '请选择开始时间',
           icon: 'none'
         });
         return;
       }
       
-      // 解析选择的时间
+      // 解析选择的开始时间
       const startDate = this.parseSelectedTime(this.data.startTime);
-      const endDate = this.parseSelectedTime(this.data.endTime);
-      
-      // 验证时间
-      if (startDate >= endDate) {
-        wx.showToast({
-          title: '结束时间必须晚于开始时间',
-          icon: 'none'
-        });
-        return;
-      }
-      
+
+      // 开始时间不能早于当前时间
       if (startDate < now) {
         wx.showToast({
           title: '开始时间不能早于当前时间',
@@ -888,6 +1000,9 @@ Page({
         });
         return;
       }
+
+      // 结束时间 = 开始时间 + 2小时（可根据业务需要调整）
+      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
       
       startTime = formatDateForBackend(startDate);
       endTime = formatDateForBackend(endDate);
@@ -939,18 +1054,41 @@ Page({
             }
           }
           
+          // 轻量提示后，直接跳转到预约详情，避免在当前页面中转停留
           wx.showToast({
             title: '预约成功',
-            icon: 'success'
+            icon: 'success',
+            duration: 800
           });
-          
-          // 跳转至预约详情页面，使用真实的预约ID
-          // 倒计时将在预约详情页面启动
-          wx.navigateTo({
-            url: `/pages/reservation/detail?id=${reservationId}`
-          });
+
+            wx.navigateTo({
+              url: `/pages/reservation/detail?id=${reservationId}`
+            });
         } else {
-          // 更详细的错误信息展示
+          // 特殊处理：后端返回未支付订单限制（code = 409，message 形如 UNPAID_ORDER:123）
+          const data = res.data || {};
+          if (data.code === 409 && typeof data.message === 'string' && data.message.indexOf('UNPAID_ORDER:') === 0) {
+            const parts = data.message.split(':');
+            const unpaidId = parts.length > 1 ? parts[1] : null;
+            if (unpaidId) {
+              wx.showModal({
+                title: '提示',
+                content: '您有一笔待支付的预约订单，请先完成支付后再创建新的预约。',
+                confirmText: '去支付',
+                cancelText: '稍后再说',
+                success: (modalRes) => {
+                  if (modalRes.confirm) {
+                    wx.navigateTo({
+                      url: `/pages/reservation/detail?id=${unpaidId}`
+                    });
+                  }
+                }
+              });
+              return;
+            }
+          }
+
+          // 其他错误：展示更详细的错误信息
           let errorMsg = '服务器错误';
           if (res.statusCode) {
             errorMsg += ` (状态码: ${res.statusCode})`;
@@ -1033,6 +1171,100 @@ Page({
   },
 
 
+
+  /**
+   * 检查是否已收藏
+   */
+  checkIfFavorite(parkingId) {
+    try {
+      const favorites = wx.getStorageSync('favoriteParkings') || [];
+      return favorites.some(item => Number(item.id) === Number(parkingId));
+    } catch (e) {
+      console.error('检查收藏状态失败:', e);
+      return false;
+    }
+  },
+
+  /**
+   * 切换收藏状态
+   */
+  toggleFavorite() {
+    const parkingId = this.data.parkingId;
+    const parkingDetails = this.data.parkingDetails;
+    
+    if (!parkingDetails) {
+      wx.showToast({
+        title: '停车场信息未加载',
+        icon: 'none'
+      });
+      return;
+    }
+
+    try {
+      let favorites = wx.getStorageSync('favoriteParkings') || [];
+      const isFavorite = this.data.isFavorite;
+
+      if (isFavorite) {
+        // 取消收藏
+        favorites = favorites.filter(item => Number(item.id) !== Number(parkingId));
+        wx.showToast({
+          title: '已取消收藏',
+          icon: 'success',
+          duration: 1500
+        });
+      } else {
+        // 添加收藏
+        const favoriteItem = {
+          id: Number(parkingId),
+          name: parkingDetails.name,
+          address: parkingDetails.address,
+          area: parkingDetails.area,
+          pricePerHour: parkingDetails.pricePerHour || 0,
+          availableSpaces: parkingDetails.availableSpaces || 0,
+          totalSpaces: parkingDetails.totalSpaces || 0,
+          imageUrl: parkingDetails.imageUrl || (parkingDetails.images && parkingDetails.images.length > 0 
+            ? parkingDetails.images[0] 
+            : '/images/parking.png'),
+          latitude: parkingDetails.latitude,
+          longitude: parkingDetails.longitude,
+          collectedAt: new Date().toISOString() // 收藏时间
+        };
+        
+        // 检查是否已存在，避免重复
+        const exists = favorites.some(item => Number(item.id) === Number(parkingId));
+        if (!exists) {
+          favorites.unshift(favoriteItem); // 添加到开头
+        }
+        
+        wx.showToast({
+          title: '收藏成功',
+          icon: 'success',
+          duration: 1500
+        });
+      }
+
+      // 保存到本地存储
+      wx.setStorageSync('favoriteParkings', favorites);
+      
+      // 更新状态
+      this.setData({
+        isFavorite: !isFavorite
+      });
+
+      // 通知"我的"页面刷新（如果页面存在）
+      const pages = getCurrentPages();
+      const profilePage = pages.find(page => page.route === 'pages/user/profile');
+      if (profilePage && profilePage.loadFavoriteParkings) {
+        profilePage.loadFavoriteParkings();
+      }
+    } catch (e) {
+      console.error('切换收藏状态失败:', e);
+      wx.showToast({
+        title: '操作失败，请重试',
+        icon: 'none'
+      });
+    }
+  },
 
   /**
    * 用户点击右上角分享

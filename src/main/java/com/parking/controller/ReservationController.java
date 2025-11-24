@@ -186,4 +186,33 @@ public class ReservationController {
             return ResponseEntity.badRequest().build();
         }
     }
+    
+    /**
+     * 支付预约订单
+     * @param id 预约ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/pay")
+    public ResponseEntity<Map<String, Object>> payReservation(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            boolean result = reservationService.updatePaymentStatus(id, 1); // 1表示已支付
+            if (result) {
+                response.put("success", true);
+                response.put("message", "支付成功");
+                response.put("data", true);
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("success", false);
+                response.put("message", "支付失败：预约不存在或状态无效");
+                response.put("data", null);
+                return ResponseEntity.badRequest().body(response);
+            }
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "支付失败：" + e.getMessage());
+            response.put("data", null);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
 }

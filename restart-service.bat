@@ -1,4 +1,4 @@
-@echo off
+[渲染层错误] Image加载失败: http://127.0.0.1:25965/images/parking.png 改为用默认marker(env: Windows,mp,1.06.2504060; lib: 3.10.3)@echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
 echo ========================================

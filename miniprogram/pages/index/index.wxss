@@ -69,6 +69,77 @@
 }
 
 /* 语音按钮 */
+/* 语音唤醒指示器（类似Siri的视觉反馈） */
+.wake-indicator {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 998;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.wake-pulse {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(74, 144, 226, 0.3);
+  animation: wakePulse 2s ease-in-out infinite;
+  position: relative;
+}
+
+.wake-pulse::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(74, 144, 226, 0.6);
+  animation: wakePulseInner 2s ease-in-out infinite;
+}
+
+@keyframes wakePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.1;
+  }
+}
+
+@keyframes wakePulseInner {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.3);
+    opacity: 0.3;
+  }
+}
+
+.wake-indicator .wake-text {
+  margin-top: 16px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
 .voice-btn {
   margin-left: 8px;
   padding: 4px 8px;
@@ -84,8 +155,8 @@
 }
 
 .voice-icon {
-  font-size: 20px;
-  color: #4A90E2;
+  width: 28px;
+  height: 28px;
 }
 
 /* ============================================
@@ -308,6 +379,12 @@
   height: 100rpx;
   border-radius: 12px;
   flex-shrink: 0;
+  object-position: center center;
+}
+
+/* 广州塔图片显示右侧部分 */
+.reservation-thumbnail[src*="cantontower"] {
+  object-position: right center;
 }
 
 .reservation-thumbnail-placeholder {
@@ -761,21 +838,29 @@
 }
 
 .voice-recording-circle {
-  width: 200px;
-  height: 200px;
+  width: 256px;
+  height: 256px;
   margin: 0 auto 24px;
-  border-radius: 50%;
-  background: rgba(74, 144, 226, 0.1);
-  border: 3px solid rgba(74, 144, 226, 0.3);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
 }
 
-.voice-recording-circle.recording {
-  background: rgba(255, 68, 68, 0.1);
-  border-color: rgba(255, 68, 68, 0.5);
+.bobo-svg {
+  width: 256px;
+  height: 256px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: transform 0.3s ease;
+  border-radius: 50%;
+}
+
+.bobo-svg.recording {
   animation: pulse 1.5s infinite;
 }
 
@@ -793,6 +878,12 @@
   color: #4A90E2;
   font-weight: 500;
   text-align: center;
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 10;
 }
 
 .voice-recording-circle.recording .voice-recording-text {

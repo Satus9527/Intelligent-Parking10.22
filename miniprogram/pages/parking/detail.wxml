@@ -16,7 +16,12 @@
   <scroll-view wx:else scroll-y="true" class="detail-scroll fade-in">
     <!-- 基本信息 -->
     <view class="parking-header">
-      <view class="parking-name">{{parkingDetails.name}}</view>
+      <view class="parking-name-row">
+        <view class="parking-name">{{parkingDetails.name}}</view>
+        <view class="favorite-btn {{isFavorite ? 'favorited' : ''}}" bindtap="toggleFavorite">
+          <text class="favorite-icon">{{isFavorite ? '❤️' : '🤍'}}</text>
+        </view>
+      </view>
       <view class="parking-meta">
         <view class="meta-item">
           <text class="meta-label">距离:</text>
@@ -49,9 +54,10 @@
       <view class="action-btn" bindtap="makePhoneCall">
         <text class="btn-text">电话</text>
       </view>
-      <view class="action-btn" bindtap="onShareAppMessage">
+      <!-- 使用 open-type=\"share\" 调用系统分享，而不是直接触发 onShareAppMessage -->
+      <button class="action-btn share-btn" open-type="share">
         <text class="btn-text">分享</text>
-      </view>
+      </button>
     </view>
 
     <!-- 停车场详情 -->
@@ -177,18 +183,6 @@
                     bindchange="onStartTimeChange">
               <view class="time-picker">
                 <text>{{startTime || '请选择开始时间'}}</text>
-                <text class="arrow-icon">></text>
-              </view>
-            </picker>
-          </view>
-          <view class="form-item">
-            <text class="form-label">结束时间</text>
-            <picker mode="multiSelector" 
-                    range="{{timeRange}}" 
-                    value="{{endTimeIndex}}" 
-                    bindchange="onEndTimeChange">
-              <view class="time-picker">
-                <text>{{endTime || '请选择结束时间'}}</text>
                 <text class="arrow-icon">></text>
               </view>
             </picker>

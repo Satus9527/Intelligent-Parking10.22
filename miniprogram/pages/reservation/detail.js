@@ -69,18 +69,56 @@ Page({
             console.error('读取解锁状态失败:', e);
           }
           
-          // 根据原始状态和解锁状态确定显示状态
+          // 状态0（待使用）时，强制设置 isUnlocked 为 false
+          if (reservationData.status === 0) {
+            isUnlocked = false;
+          }
+          
+          // 根据状态设计规则确定显示状态：
+          // 状态 0（待使用）+ 未解锁 → "待使用"
+          // 状态 1（已使用）+ 无结束时间 → "使用中"
+          // 状态 1（已使用）+ 有结束时间 + 未支付 → "待支付"
+          // 状态 1（已使用）+ 有结束时间 + 已支付 → "已完成"
+          // 状态 2（已取消）→ "已取消"
+          // 状态 3（已超时）→ "已超时"
           let displayStatus = this.getStatusText(reservationData.status);
-          if (reservationData.status === 0 && isUnlocked) {
-            // 如果后端状态是待使用（0）且已解锁，显示为"使用中"
-            displayStatus = '使用中';
+          let statusClass = 'pending'; // 默认状态样式类
+          if (reservationData.status === 0) {
+            // 状态 0（待使用）：显示"待使用"（解锁后状态会变为1，所以状态0时总是未解锁）
+            displayStatus = '待使用';
+            statusClass = 'pending';
           } else if (reservationData.status === 1) {
-            // 已使用状态：如果有结束时间则显示"已完成"，否则显示"使用中"
+            // 状态 1（已使用）：根据是否有实际结束时间（actualExitTime）和支付状态判断
+            // 注意：只检查 actualExitTime（实际出场时间），不检查 endTime（预约预订结束时间）
             if (reservationData.actualExitTime) {
-              displayStatus = '已完成';
+              // 有实际结束时间：根据支付状态判断
+              const paymentStatus = reservationData.paymentStatus !== undefined ? reservationData.paymentStatus : 0; // 默认为未支付
+              if (paymentStatus === 1) {
+                // 已支付 → "已完成"
+                displayStatus = '已完成';
+                statusClass = 'completed';
+              } else {
+                // 未支付 → "待支付"
+                displayStatus = '待支付';
+                statusClass = 'pending-payment';
+              }
             } else {
+              // 无实际结束时间 → "使用中"
               displayStatus = '使用中';
+              statusClass = 'in-use';
             }
+          } else if (reservationData.status === 2) {
+            // 状态 2（已取消）→ "已取消"
+            displayStatus = '已取消';
+            statusClass = 'cancelled';
+          } else if (reservationData.status === 3) {
+            // 状态 3（已超时）→ "已超时"
+            displayStatus = '已超时';
+            statusClass = 'expired';
+          } else {
+            // 其他未知状态，默认显示已完成
+            displayStatus = '已完成';
+            statusClass = 'completed';
           }
           
           // 如果已解锁，使用解锁时间作为开始时间（优先使用解锁时间）
@@ -120,7 +158,9 @@ Page({
               `${reservationData.parkingSpace.floorName || ''}-${reservationData.parkingSpace.spaceNumber || ''}` : 
               '未知车位',
             status: displayStatus,
-            paymentStatus: reservationData.paymentStatus === 1 ? '已支付' : '未支付',
+            statusClass: statusClass, // 添加状态样式类
+            // 已取消和已超时订单不显示支付状态
+            paymentStatus: (displayStatus === '已取消' || displayStatus === '已超时') ? null : (reservationData.paymentStatus === 1 ? '已支付' : '未支付'),
             reserveTime: this.formatDateTimeRange(reservationData.startTime, reservationData.endTime),
             createTime: this.formatDateTime(reservationData.createdAt),
             amount: calculatedAmount !== '0.00' ? calculatedAmount : (reservationData.amount ? parseFloat(reservationData.amount).toFixed(2) : '0.00'),
@@ -130,44 +170,37 @@ Page({
             actualStartTime: actualStartTimeDisplay,
             actualEndTime: reservationData.actualExitTime ? this.formatDateTime(reservationData.actualExitTime) : null,
             parkingLotHourlyRate: reservationData.parkingLotHourlyRate || 0, // 保存每小时费率，用于计算费用
-            unlockTime: unlockTime // 保存解锁时间，用于计算费用
+            unlockTime: unlockTime, // 保存解锁时间，用于计算费用
+            isUnlocked: isUnlocked // 保存解锁状态，用于控制按钮显示
           };
           
-          // 判断是否是立即预约
-          // 方法1：检查开始时间是否接近创建时间（立即预约的开始时间应该和创建时间很接近）
-          const startTime = new Date(reservationData.startTime);
-          const createTime = new Date(reservationData.createdAt);
-          const timeDiffFromCreate = Math.abs((startTime - createTime) / 1000); // 秒数差
-          const isImmediateByTime = timeDiffFromCreate <= 300; // 5分钟内认为是立即预约
+          // 规则调整：只有当前时间 >= 开始时间 且状态为待使用(status=0) 时才显示10分钟倒计时
+          // 对于立即预约，允许5秒的时间容差（考虑网络延迟和服务器处理时间）
+          let shouldShowCountdown = false;
+          let isImmediateReservation = false;
           
-          // 方法2：从本地存储检查（如果是从停车场详情页跳转过来的立即预约）
-          let isImmediateByStorage = false;
-          try {
-            const immediateReservations = wx.getStorageSync('immediateReservations') || {};
-            isImmediateByStorage = immediateReservations[reservationData.id] === true;
-          } catch (e) {
-            console.error('读取立即预约标记失败:', e);
+          if (reservationData.startTime && reservationData.status === 0) {
+            const startTime = new Date(reservationData.startTime);
+            const now = new Date();
+            const timeDiff = now.getTime() - startTime.getTime(); // 时间差（毫秒）
+            
+            // 检查是否是立即预约（通过检查本地存储标记或时间差判断）
+            try {
+              const immediateReservations = wx.getStorageSync('immediateReservations') || {};
+              isImmediateReservation = immediateReservations[reservationData.id] === true;
+            } catch (e) {
+              console.error('读取立即预约标记失败:', e);
+            }
+            
+            // 如果是立即预约，允许5秒的时间容差；否则要求当前时间 >= 开始时间
+            if (isImmediateReservation) {
+              // 立即预约：允许5秒容差（考虑网络延迟）
+              shouldShowCountdown = timeDiff >= -5000; // 当前时间可以比开始时间早5秒以内
+            } else {
+              // 非立即预约：要求当前时间 >= 开始时间
+              shouldShowCountdown = now >= startTime;
+            }
           }
-          
-          // 方法3：检查开始时间是否在当前时间的10分钟内（立即预约的开始时间应该接近当前时间）
-          const now = new Date();
-          const timeDiffFromNow = (startTime - now) / 1000; // 秒数差
-          const isImmediateByNow = timeDiffFromNow >= -60 && timeDiffFromNow <= 600; // 开始时间在当前时间前后1分钟到10分钟之间
-          
-          const shouldShowCountdown = (isImmediateByTime || isImmediateByStorage || isImmediateByNow) && reservationData.status === 0;
-          
-          console.log('倒计时判断:', {
-            reservationId: reservationData.id,
-            status: reservationData.status,
-            startTime: reservationData.startTime,
-            createTime: reservationData.createdAt,
-            timeDiffFromCreate,
-            isImmediateByTime,
-            isImmediateByStorage,
-            timeDiffFromNow,
-            isImmediateByNow,
-            shouldShowCountdown
-          });
           
           this.setData({
             loading: false,
@@ -175,12 +208,17 @@ Page({
             isImmediateReservation: shouldShowCountdown
           });
           
-          // 如果是立即预约且状态为待使用且未解锁，启动倒计时
-          if (shouldShowCountdown && !isUnlocked) {
-            // 使用创建时间作为倒计时起点（立即预约从创建时间起10分钟）
-            this.startCountdown(reservationData.id, reservationData.createdAt || reservationData.startTime);
-          } else if (isUnlocked) {
-            // 如果已解锁，不显示倒计时
+          // 如果已到开始时间且状态为待使用且未解锁，启动倒计时
+          // 倒计时基准时间：开始时间（startTime）
+          if (shouldShowCountdown && reservationData.status === 0) {
+            // 对于立即预约，使用当前时间作为倒计时基准（如果开始时间还没到）
+            const startTime = new Date(reservationData.startTime);
+            const now = new Date();
+            // 如果开始时间还没到，使用当前时间作为基准；否则使用开始时间
+            const countdownBaseTime = startTime > now ? now.toISOString() : reservationData.startTime;
+            this.startCountdown(reservationData.id, countdownBaseTime, reservationData.status);
+          } else {
+            // 如果不是立即预约或已解锁，不显示倒计时
             this.setData({
               isImmediateReservation: false
             });
@@ -271,11 +309,156 @@ Page({
     });
   },
 
-  // 支付订单
-  payOrder() {
+  // 解锁车位（调用后端API更新状态）
+  unlockSpace() {
+    const reservationId = this.data.reservationId;
+    if (!reservationId) {
+      wx.showToast({
+        title: '预约ID无效',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+    
+    const that = this;
+    
+    // 检查是否已经解锁
+    if (this.data.reservationDetail && (this.data.reservationDetail.isUnlocked || this.data.reservationDetail.status === '使用中')) {
+      wx.showToast({
+        title: '该预约已解锁',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+    
+    wx.showLoading({ title: '解锁中...' });
+    
+    // 先获取预约详情，检查当前状态
+    wx.request({
+      url: `${app.globalData.apiBaseUrl}/api/v1/reservations/${reservationId}`,
+      method: 'GET',
+      header: { 
+        'Authorization': `Bearer ${app.globalData.token}`,
+        'content-type': 'application/json'
+      },
+      success: function(detailRes) {
+        if (detailRes.statusCode === 200 && detailRes.data) {
+          const reservation = detailRes.data;
+          
+          // 检查预约状态
+          if (reservation.status !== 0) {
+            wx.hideLoading();
+            let errorMsg = '预约状态无效，无法解锁';
+            if (reservation.status === 1) {
+              errorMsg = '该预约已在使用中';
+            } else if (reservation.status === 2) {
+              errorMsg = '该预约已取消';
+            } else if (reservation.status === 3) {
+              errorMsg = '该预约已超时';
+            }
+            
+            wx.showModal({
+              title: '提示',
+              content: errorMsg + '，请刷新页面查看最新状态',
+              showCancel: false,
+              success: () => {
+                // 刷新预约数据
+                that.getReservationDetail(reservationId);
+              }
+            });
+            return;
+          }
+          
+          // 状态正常，调用解锁接口
+          wx.request({
+            url: `${app.globalData.apiBaseUrl}/api/v1/reservations/${reservationId}/use`,
+            method: 'POST',
+            header: { 
+              'Authorization': `Bearer ${app.globalData.token}`,
+              'content-type': 'application/json'
+            },
+            success: function(res) {
+              wx.hideLoading();
+              
+              if (res.statusCode === 200 && res.data) {
+                // 保存解锁状态和解锁时间到本地存储
+                try {
+                  const unlockedReservations = wx.getStorageSync('unlockedReservations') || {};
+                  unlockedReservations[reservationId] = true;
+                  wx.setStorageSync('unlockedReservations', unlockedReservations);
+                  
+                  // 保存解锁时间
+                  const unlockTimes = wx.getStorageSync('unlockTimes') || {};
+                  unlockTimes[reservationId] = new Date().toISOString();
+                  wx.setStorageSync('unlockTimes', unlockTimes);
+                } catch (e) {
+                  console.error('保存解锁状态失败:', e);
+                }
+                
+                // 停止倒计时（因为已解锁，不再需要倒计时）
+                that.stopCountdown();
+                
+                wx.showToast({
+                  title: '已解锁',
+                  icon: 'success',
+                  duration: 2000
+                });
+                
+                // 刷新预约数据，确保状态同步（后端状态已更新为USED=1，刷新后会显示"使用中"）
+                setTimeout(() => {
+                  that.getReservationDetail(reservationId);
+                }, 1500);
+              } else {
+                wx.hideLoading();
+                let errorMsg = '解锁失败';
+                if (res.data && res.data.message) {
+                  // 后端返回的“尚未开始”特殊提示，统一转成友好的中文文案
+                  if (res.data.message.indexOf('NOT_STARTED') !== -1) {
+                    errorMsg = '未到预约时间，暂时不能解锁';
+                  } else {
+                  errorMsg = res.data.message;
+                  }
+                } else if (res.data && typeof res.data === 'string') {
+                  errorMsg = res.data;
+                }
+                
+                wx.showModal({
+                  title: '解锁失败',
+                  content: errorMsg,
+                  showCancel: false
+                });
+              }
+            },
+            fail: function(error) {
+              wx.hideLoading();
+              console.error('解锁失败:', error);
+              wx.showToast({
+                title: '网络错误，请稍后重试',
+                icon: 'none',
+                duration: 2000
+              });
+            }
+          });
+        } else {
+          wx.hideLoading();
+          wx.showToast({
+            title: '获取预约信息失败',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      },
+      fail: function(error) {
+        wx.hideLoading();
+        console.error('获取预约详情失败:', error);
     wx.showToast({
-      title: '支付功能暂未开放',
-      icon: 'none'
+          title: '网络错误，请稍后重试',
+          icon: 'none',
+          duration: 2000
+        });
+      }
     });
   },
 
@@ -324,6 +507,62 @@ Page({
             fail: (error) => {
               wx.hideLoading();
               console.error('结束订单失败:', error);
+              wx.showToast({
+                title: '网络错误，请稍后重试',
+                icon: 'none'
+              });
+            }
+          });
+        }
+      }
+    });
+  },
+
+  // 支付订单
+  payReservation() {
+    const that = this;
+    const reservationId = this.data.reservationId;
+    const amount = this.data.reservationDetail?.amount || '0.00';
+    
+    wx.showModal({
+      title: '确认支付',
+      content: `确定要支付 ¥${amount} 吗？`,
+      success: (res) => {
+        if (res.confirm) {
+          wx.showLoading({ title: '支付中...' });
+          
+          // 调用后端API支付订单
+          wx.request({
+            url: `${app.globalData.apiBaseUrl}/api/v1/reservations/${reservationId}/pay`,
+            method: 'POST',
+            header: { 
+              'Authorization': `Bearer ${app.globalData.token}`,
+              'content-type': 'application/json'
+            },
+            success: (result) => {
+              wx.hideLoading();
+              
+              if (result.statusCode === 200 && result.data && result.data.success) {
+                wx.showToast({
+                  title: '支付成功',
+                  icon: 'success',
+                  duration: 2000
+                });
+                
+                // 刷新详情，确保获取最新的支付状态
+                setTimeout(() => {
+                  that.getReservationDetail(reservationId);
+                }, 1500);
+              } else {
+                wx.showToast({
+                  title: result.data?.message || '支付失败',
+                  icon: 'none'
+                });
+              }
+            },
+            fail: (error) => {
+              wx.hideLoading();
+              console.error('支付失败:', error);
               wx.showToast({
                 title: '网络错误，请稍后重试',
                 icon: 'none'
@@ -448,19 +687,34 @@ Page({
   /**
    * 开始倒计时
    */
-  startCountdown(reservationId, baseTime) {
+  startCountdown(reservationId, baseTime, reservationStatus) {
     // 清除之前的倒计时
     if (this.data.countdownTimer) {
       clearInterval(this.data.countdownTimer);
     }
     
-    // 检查是否已解锁，如果已解锁则不启动倒计时
+    // 如果预约状态不是0（待使用），不启动倒计时
+    // 状态0（待使用）意味着未解锁，不需要检查本地存储
+    if (reservationStatus !== undefined && reservationStatus !== 0) {
+      console.log('预约状态不是待使用，不启动倒计时，状态:', reservationStatus);
+      this.setData({
+        isImmediateReservation: false
+      });
+      return;
+    }
+    
+    // 检查是否已解锁（仅作为额外检查，状态0时应该总是未解锁）
     let isUnlocked = false;
     try {
       const unlockedReservations = wx.getStorageSync('unlockedReservations') || {};
       isUnlocked = unlockedReservations[reservationId] === true;
     } catch (e) {
       console.error('读取解锁状态失败:', e);
+    }
+    
+    // 如果状态是0（待使用），强制设置 isUnlocked 为 false
+    if (reservationStatus === 0) {
+      isUnlocked = false;
     }
     
     if (isUnlocked) {
@@ -473,13 +727,31 @@ Page({
     
     const base = new Date(baseTime);
     const now = new Date();
-    // 从基准时间（创建时间或开始时间）起10分钟
-    let countdown = Math.max(0, Math.floor((base.getTime() + 10 * 60 * 1000 - now.getTime()) / 1000));
+    
+    // 检查是否是立即预约
+    let isImmediateReservation = false;
+    try {
+      const immediateReservations = wx.getStorageSync('immediateReservations') || {};
+      isImmediateReservation = immediateReservations[reservationId] === true;
+    } catch (e) {
+      console.error('读取立即预约标记失败:', e);
+    }
+    
+    // 计算倒计时
+    let countdown;
+    if (isImmediateReservation && base > now) {
+      // 立即预约且开始时间还没到：从当前时间开始倒计时10分钟
+      countdown = 10 * 60; // 10分钟 = 600秒
+    } else {
+      // 其他情况：从基准时间起10分钟
+      countdown = Math.max(0, Math.floor((base.getTime() + 10 * 60 * 1000 - now.getTime()) / 1000));
+    }
     
     console.log('启动倒计时:', {
       reservationId,
       baseTime,
       now: now.toISOString(),
+      isImmediateReservation,
       countdown
     });
     

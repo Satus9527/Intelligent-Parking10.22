@@ -16,8 +16,9 @@ public interface ChatService {
     /**
      * 获取通用的聊天回复 (指令2)
      * @param text 用户的输入文本
+     * @param conversationHistory 对话历史（最近5次对话），可以为null
      * @return AI模型的聊天回复
      */
-    String getChatResponse(String text);
+    String getChatResponse(String text, java.util.List<java.util.Map<String, Object>> conversationHistory);
 }
 

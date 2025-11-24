@@ -3,8 +3,10 @@ App({
   globalData: {
     userInfo: null,
     token: '',
-    // 【修改点1】本地调试建议使用 localhost，配合开发者工具"不校验合法域名"
-    apiBaseUrl: 'http://localhost:8082', 
+    // 后端基础地址（真机请使用当前电脑局域网 IP）
+    apiBaseUrl: 'http://172.20.10.5:8082',
+    // 静态图片基础地址（由 Spring Boot 提供的 /images/**）
+    imageBaseUrl: 'http://172.20.10.5:8082/images',
     mockMode: false, 
     appConfig: {
       debug: true,
@@ -126,7 +128,14 @@ App({
                  }
                  reject(res.data);
              } else {
-                 resolve(res.data);
+                 // 如果返回的是 {success: true, data: [...]} 格式，提取data字段
+                 if (res.data && res.data.success && res.data.data !== undefined) {
+                   resolve(res.data.data);
+                 } else if (res.data && res.data.code === 200 && res.data.data !== undefined) {
+                   resolve(res.data.data);
+                 } else {
+                   resolve(res.data);
+                 }
              }
           } else {
             if (showError) wx.showToast({ title: '服务器错误', icon: 'none' });

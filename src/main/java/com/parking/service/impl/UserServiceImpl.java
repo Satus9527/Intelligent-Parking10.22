@@ -91,19 +91,50 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserDTO updateUserInfo(UserDTO userDTO) {
+        System.out.println("========== 更新用户信息 ==========");
+        System.out.println("接收到的用户DTO: " + userDTO);
+        System.out.println("用户ID: " + userDTO.getId());
+        System.out.println("车牌号: " + userDTO.getLicensePlate());
+        System.out.println("电话: " + userDTO.getPhone());
+        System.out.println("昵称: " + userDTO.getNickname());
+        
         UserEntity userEntity = userMapper.selectById(userDTO.getId());
         if (userEntity == null) {
             throw new RuntimeException("用户不存在");
         }
         
-        // 更新用户信息
-        BeanUtils.copyProperties(userDTO, userEntity);
+        System.out.println("更新前的用户实体 - 车牌号: " + userEntity.getLicensePlate());
+        System.out.println("更新前的用户实体 - 电话: " + userEntity.getPhone());
+        
+        // 只更新非空字段，避免覆盖现有数据
+        if (userDTO.getNickname() != null && !userDTO.getNickname().trim().isEmpty()) {
+            userEntity.setNickname(userDTO.getNickname().trim());
+        }
+        if (userDTO.getAvatarUrl() != null) {
+            userEntity.setAvatarUrl(userDTO.getAvatarUrl());
+        }
+        if (userDTO.getPhone() != null && !userDTO.getPhone().trim().isEmpty()) {
+            userEntity.setPhone(userDTO.getPhone().trim());
+        }
+        if (userDTO.getLicensePlate() != null && !userDTO.getLicensePlate().trim().isEmpty()) {
+            userEntity.setLicensePlate(userDTO.getLicensePlate().trim());
+            System.out.println("设置车牌号为: " + userDTO.getLicensePlate().trim());
+        }
+        
         userEntity.setUpdateTime(LocalDateTime.now());
-        userMapper.updateById(userEntity);
+        int updateResult = userMapper.updateById(userEntity);
+        System.out.println("数据库更新结果: " + updateResult);
+        
+        // 再次查询确认更新结果
+        UserEntity updatedEntity = userMapper.selectById(userDTO.getId());
+        System.out.println("更新后的用户实体 - 车牌号: " + updatedEntity.getLicensePlate());
+        System.out.println("更新后的用户实体 - 电话: " + updatedEntity.getPhone());
         
         // 返回更新后的用户信息
         UserDTO result = new UserDTO();
-        BeanUtils.copyProperties(userEntity, result);
+        BeanUtils.copyProperties(updatedEntity, result);
+        System.out.println("返回的用户DTO - 车牌号: " + result.getLicensePlate());
+        System.out.println("========== 更新用户信息完成 ==========");
         return result;
     }
     
