@@ -19,6 +19,10 @@ Page({
     announcement: '欢迎使用智能停车场小程序，祝您停车愉快！',
     latestReservation: null,
     
+    // 公告滚动相关
+    scrollLeft: 0,
+    scrollTimer: null,
+    
     // 搜索与语音
     searchKeyword: '', 
     searchResults: [], 
@@ -158,6 +162,10 @@ Page({
     // 停止唤醒模式
     this.stopWakeMode();
   },
+  
+  onHide: function() {
+    // 页面隐藏时不清除定时器，保持监听
+  },
 
   onHide: function() {
     // 页面隐藏时不清除定时器，保持监听
@@ -250,7 +258,8 @@ Page({
     
         // 获取图片基础URL
         const app = getApp();
-        const imageBaseUrl = app.globalData.imageBaseUrl || 'http://172.20.10.5:8082/images';
+        let imageBaseUrl = app.globalData.imageBaseUrl || 'http://172.20.10.5:8082/images';
+        imageBaseUrl = imageBaseUrl.replace(/\/$/, ''); // 移除尾随斜杠，确保URL格式正确
         
         const markers = parkingsWithDistance.map(parking => ({
             id: Number(parking.id),
@@ -266,8 +275,8 @@ Page({
               bgColor: '#ffffff',
               color: '#333333'
             },
-            // 使用网络路径，确保真机调试时能正常显示
-            iconPath: `${imageBaseUrl}/parking.png` 
+            // 使用本地图片路径
+            iconPath: '/images/parking.png'
         }));
     
         that.setData({
@@ -307,17 +316,24 @@ Page({
     }
   },
 
-  // 加载推荐停车场（修复：添加 pricePerHour）
-  loadRecommendedParkings: function() {
+  // 加载推荐停车场（修复：添加 pricePerHour，增强错误处理和重试）
+  loadRecommendedParkings: function(retryCount = 0) {
     const that = this;
+    const maxRetries = 2;
+    
+    console.log(`[推荐停车场] 开始加载，重试次数: ${retryCount}`);
+    
     app.request({
       url: '/api/v1/parking/nearby', 
       data: {
         longitude: this.data.longitude,
         latitude: this.data.latitude,
         radius: 20000 
-      }
+      },
+      timeout: 15000, // 15秒超时
+      showError: false // 不显示错误提示，我们自己处理
     }).then(res => {
+       console.log('[推荐停车场] 请求成功:', res);
        const data = Array.isArray(res) ? res : (res.data || []);
        if (data.length > 0) {
          const recommended = data.slice(0, 3).map(p => ({
@@ -328,20 +344,54 @@ Page({
            distanceStr: '未知距离' 
          }));
          that.setData({ recommendedParkings: recommended });
+         console.log('[推荐停车场] 数据设置成功，数量:', recommended.length);
+       } else {
+         console.warn('[推荐停车场] 返回数据为空');
+         // 设置空数组，避免显示旧数据
+         that.setData({ recommendedParkings: [] });
        }
-    }).catch(console.error);
+    }).catch(err => {
+      console.error('[推荐停车场] 请求失败:', err);
+      // 如果还有重试次数，延迟后重试
+      if (retryCount < maxRetries) {
+        console.log(`[推荐停车场] ${2000 * (retryCount + 1)}ms 后重试...`);
+        setTimeout(() => {
+          that.loadRecommendedParkings(retryCount + 1);
+        }, 2000 * (retryCount + 1)); // 递增延迟：2s, 4s
+      } else {
+        console.error('[推荐停车场] 达到最大重试次数，使用空数据');
+        // 设置空数组，避免显示旧数据
+        that.setData({ recommendedParkings: [] });
+      }
+    });
   },
 
-  loadLatestReservation: function() {
+  loadLatestReservation: function(retryCount = 0) {
     const that = this;
-    if (!app.globalData.token) return;
+    const maxRetries = 2;
+    
+    if (!app.globalData.token) {
+      console.log('[最新预约] Token未就绪，等待Token...');
+      // 如果token未就绪，等待token就绪后再加载
+      if (!app.tokenReadyCallback) {
+        app.tokenReadyCallback = (token) => {
+          console.log('[最新预约] Token已就绪，开始加载预约数据');
+          that.loadLatestReservation(0);
+        };
+      }
+      return;
+    }
+    
+    console.log(`[最新预约] 开始加载，重试次数: ${retryCount}`);
     
     wx.request({
       url: `${app.globalData.apiBaseUrl}/api/v1/reservations/user`,
       method: 'GET',
       header: { 'Authorization': `Bearer ${app.globalData.token}` },
       data: { pageNum: 1, pageSize: 1 },
+      timeout: 15000, // 15秒超时
       success: function(res) {
+        console.log('[最新预约] 请求成功:', res);
         if (res.statusCode === 200 && res.data) {
            const resultData = res.data.data || res.data;
            const list = Array.isArray(resultData) ? resultData : (resultData.list || []);
@@ -440,14 +490,14 @@ Page({
                statusClass = 'completed';
              }
              
-             // 获取停车场图片（相对路径转完整 URL）
+             // 获取停车场图片（使用本地图片路径）
              const parkingName = item.parkingLotName || item.parkingName || '停车场';
-             const relativeImagePath = getParkingImage(item.parkingId, parkingName); // 如：/taiguhui.jpg
-             const app = getApp();
-             // 确保图片URL是完整的网络地址
-             const parkingImage = relativeImagePath 
-               ? `${app.globalData.imageBaseUrl}${relativeImagePath}` 
-               : `${app.globalData.imageBaseUrl}/taiguhui.jpg`; // 使用默认图片
+             const parkingImage = getParkingImage(item.parkingId, parkingName); // 直接返回本地路径，如：/images/taiguhui.jpg
+             console.log('首页预约图片路径（本地）:', {
+               parkingId: item.parkingId,
+               parkingName: parkingName,
+               imagePath: parkingImage
+             });
              
              that.setData({
                latestReservation: {
@@ -478,9 +528,34 @@ Page({
            } else {
              // 没有预约，清除倒计时
              that.stopCountdown();
+             that.setData({ latestReservation: null });
            }
+        } else {
+          console.warn('[最新预约] HTTP状态码异常或返回数据为空:', res.statusCode, res.data);
+          // 如果还有重试次数，延迟后重试
+          if (retryCount < maxRetries) {
+            console.log(`[最新预约] ${2000 * (retryCount + 1)}ms 后重试...`);
+            setTimeout(() => {
+              that.loadLatestReservation(retryCount + 1);
+            }, 2000 * (retryCount + 1));
+          } else {
+            that.setData({ latestReservation: null });
+          }
         }
+    },
+    fail: function(err) {
+      console.error('[最新预约] 请求失败:', err);
+      // 如果还有重试次数，延迟后重试
+      if (retryCount < maxRetries) {
+        console.log(`[最新预约] ${2000 * (retryCount + 1)}ms 后重试...`);
+        setTimeout(() => {
+          that.loadLatestReservation(retryCount + 1);
+        }, 2000 * (retryCount + 1)); // 递增延迟：2s, 4s
+      } else {
+        console.error('[最新预约] 达到最大重试次数，清空预约数据');
+        that.setData({ latestReservation: null });
       }
+    }
     });
   },
 
@@ -1431,6 +1506,16 @@ Page({
             // 直接跳转到预约详情页（预约已创建成功）
             const reservationData = result.prefillData;
             if (reservationData.reservationId) {
+              // 语音预约通常是立即预约，保存立即预约标记以便预约详情页显示倒计时
+              try {
+                const immediateReservations = wx.getStorageSync('immediateReservations') || {};
+                immediateReservations[reservationData.reservationId] = true;
+                wx.setStorageSync('immediateReservations', immediateReservations);
+                console.log('[语音预约] 已保存立即预约标记，预约ID:', reservationData.reservationId);
+              } catch (e) {
+                console.error('[语音预约] 保存立即预约标记失败:', e);
+              }
+              
               wx.navigateTo({
                 url: `/pages/reservation/detail?id=${reservationData.reservationId}`
               });
@@ -1501,5 +1586,6 @@ Page({
         console.error('网络错误:', err);
       }
     });
-  }
+  },
+  
 })

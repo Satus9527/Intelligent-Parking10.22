@@ -487,12 +487,13 @@ Page({
           // 获取行政区域：优先使用 district 字段，其次从地址中提取
           const district = parkingData.district || parkingData.area || extractDistrictFromAddress(parkingData.address) || '未知区域';
           
-          // 获取停车场图片（相对路径转为完整 URL）
-          const app = getApp();
-          const relativeImagePath = getParkingImage(parkingData.id, parkingData.name); // 如：/parking.png
-          const parkingImage = relativeImagePath 
-            ? `${app.globalData.imageBaseUrl}${relativeImagePath}` 
-            : `${app.globalData.imageBaseUrl}/parking.png`;
+          // 获取停车场图片（使用本地图片路径）
+          const parkingImage = getParkingImage(parkingData.id, parkingData.name); // 直接返回本地路径，如：/images/taiguhui.jpg
+          console.log('停车场详情图片路径（本地）:', {
+            parkingId: parkingData.id,
+            parkingName: parkingData.name,
+            imagePath: parkingImage
+          });
           // 生成停车场评分（如果后端未提供评分字段，则根据ID生成一个稳定的伪随机评分）
           const rating = that.getParkingRating(parkingData);
           
@@ -720,8 +721,8 @@ Page({
       } else {
         // 本地还没有任何车牌时，才使用示例数据做初始化（可选）
     const mockVehicles = [
-      { id: '1', plateNumber: '京A12345', type: '小型轿车' },
-      { id: '2', plateNumber: '京B54321', type: '小型SUV' }
+      { id: '1', plateNumber: '粤A12345', type: '小型轿车' },
+      { id: '2', plateNumber: '粤A54321', type: '小型SUV' }
     ];
     
     wx.setStorageSync('userVehicles', mockVehicles);

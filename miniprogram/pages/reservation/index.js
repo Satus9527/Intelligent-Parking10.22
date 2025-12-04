@@ -7,7 +7,8 @@ Page({
     loading: true,       // 加载状态
     error: false,        // 错误状态
     empty: false,        // 无数据状态
-    errorMsg: ''         // 错误信息
+    errorMsg: '',        // 错误信息
+    hasCompletedOrCancelled: false // 是否有已完成或已取消的记录
   },
 
   onLoad() {
@@ -128,10 +129,16 @@ Page({
             };
           });
           
+          // 检查是否有已完成、已取消或已超时的记录
+          const hasCompletedOrCancelled = formattedReservations.some(item => 
+            item.status === '已完成' || item.status === '已取消' || item.status === '已超时'
+          );
+          
           this.setData({
             loading: false,
             reservationList: formattedReservations,
-            empty: formattedReservations.length === 0
+            empty: formattedReservations.length === 0,
+            hasCompletedOrCancelled: hasCompletedOrCancelled
           });
         } else {
           this.setData({
@@ -246,5 +253,65 @@ Page({
       3: '已超时'
     };
     return statusMap[status] || '未知状态';
+  },
+  
+  /**
+   * 清空已完成和已取消的预约记录
+   */
+  clearCompletedReservations() {
+    const that = this;
+    
+    // 确认对话框
+    wx.showModal({
+      title: '确认清空',
+      content: '确定要清空所有已完成、已取消和已超时的预约记录吗？此操作不可恢复。',
+      confirmText: '确定',
+      cancelText: '取消',
+      success: function(res) {
+        if (res.confirm) {
+          // 用户确认，执行清空操作
+          wx.showLoading({ title: '清空中...' });
+          
+          const app = getApp();
+          wx.request({
+            url: `${app.globalData.apiBaseUrl}/api/v1/reservations/user/completed-cancelled`,
+            method: 'DELETE',
+            header: { 'Authorization': `Bearer ${app.globalData.token}` },
+            success: (res) => {
+              wx.hideLoading();
+              
+              if (res.statusCode === 200 && res.data && res.data.success) {
+                const deletedCount = res.data.data || 0;
+                wx.showToast({
+                  title: `已清空 ${deletedCount} 条记录`,
+                  icon: 'success',
+                  duration: 2000
+                });
+                
+                // 重新加载预约列表
+                setTimeout(() => {
+                  that.getUserReservations();
+                }, 500);
+              } else {
+                wx.showToast({
+                  title: res.data?.message || '清空失败',
+                  icon: 'none',
+                  duration: 2000
+                });
+              }
+            },
+            fail: (error) => {
+              wx.hideLoading();
+              console.error('清空预约记录失败:', error);
+              wx.showToast({
+                title: '网络错误，请稍后重试',
+                icon: 'none',
+                duration: 2000
+              });
+            }
+          });
+        }
+      }
+    });
   }
 });

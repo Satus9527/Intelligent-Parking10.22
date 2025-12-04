@@ -149,6 +149,17 @@ Page({
             }
           }
           
+          // 获取停车场位置信息（用于导航）
+          let parkingLatitude = null;
+          let parkingLongitude = null;
+          if (reservationData.parkingLot) {
+            parkingLatitude = reservationData.parkingLot.latitude;
+            parkingLongitude = reservationData.parkingLot.longitude;
+          } else if (reservationData.parkingLotLatitude && reservationData.parkingLotLongitude) {
+            parkingLatitude = reservationData.parkingLotLatitude;
+            parkingLongitude = reservationData.parkingLotLongitude;
+          }
+          
           const formattedDetail = {
             id: reservationData.id,
             reservationNo: reservationData.reservationNo || `RES${reservationData.id}`,
@@ -171,7 +182,9 @@ Page({
             actualEndTime: reservationData.actualExitTime ? this.formatDateTime(reservationData.actualExitTime) : null,
             parkingLotHourlyRate: reservationData.parkingLotHourlyRate || 0, // 保存每小时费率，用于计算费用
             unlockTime: unlockTime, // 保存解锁时间，用于计算费用
-            isUnlocked: isUnlocked // 保存解锁状态，用于控制按钮显示
+            isUnlocked: isUnlocked, // 保存解锁状态，用于控制按钮显示
+            parkingLatitude: parkingLatitude, // 停车场纬度
+            parkingLongitude: parkingLongitude // 停车场经度
           };
           
           // 规则调整：只有当前时间 >= 开始时间 且状态为待使用(status=0) 时才显示10分钟倒计时
@@ -892,46 +905,194 @@ Page({
    */
   autoCancelReservation(reservationId) {
     const app = getApp();
-    wx.showModal({
-      title: '预约超时',
-      content: '预约已超时，将自动取消',
-      showCancel: false,
-      success: () => {
-        wx.request({
-          url: `${app.globalData.apiBaseUrl}/api/v1/reservations/${reservationId}/cancel`,
-          method: 'POST',
-          header: { 'Authorization': `Bearer ${app.globalData.token}` },
-          success: (res) => {
-            if (res.statusCode === 200) {
-              wx.showToast({
-                title: '预约已自动取消',
-                icon: 'none'
-              });
-              // 清除倒计时和本地存储
-              this.stopCountdown();
-              try {
-                // 清除立即预约标记
-                const immediateReservations = wx.getStorageSync('immediateReservations') || {};
-                delete immediateReservations[reservationId];
-                wx.setStorageSync('immediateReservations', immediateReservations);
-                // 清除解锁状态和解锁时间
-                const unlockedReservations = wx.getStorageSync('unlockedReservations') || {};
-                delete unlockedReservations[reservationId];
-                wx.setStorageSync('unlockedReservations', unlockedReservations);
-                
-                const unlockTimes = wx.getStorageSync('unlockTimes') || {};
-                delete unlockTimes[reservationId];
-                wx.setStorageSync('unlockTimes', unlockTimes);
-              } catch (e) {
-                console.error('清除状态失败:', e);
-              }
-              // 刷新页面数据
-              this.getReservationDetail(reservationId);
-            }
-          },
-          fail: () => {
-            console.error('自动取消预约失败');
+    const that = this;
+    
+    console.log('[自动取消预约] 倒计时结束，开始自动取消预约，预约ID:', reservationId);
+    
+    // 直接调用取消接口，不显示确认弹窗
+    wx.request({
+      url: `${app.globalData.apiBaseUrl}/api/v1/reservations/${reservationId}/cancel`,
+      method: 'POST',
+      header: { 'Authorization': `Bearer ${app.globalData.token}` },
+      success: (res) => {
+        console.log('[自动取消预约] 取消请求响应:', res);
+        if (res.statusCode === 200) {
+          wx.showToast({
+            title: '预约已超时自动取消',
+            icon: 'none',
+            duration: 2000
+          });
+          
+          // 清除倒计时和本地存储
+          that.stopCountdown();
+          try {
+            // 清除立即预约标记
+            const immediateReservations = wx.getStorageSync('immediateReservations') || {};
+            delete immediateReservations[reservationId];
+            wx.setStorageSync('immediateReservations', immediateReservations);
+            
+            // 清除解锁状态和解锁时间
+            const unlockedReservations = wx.getStorageSync('unlockedReservations') || {};
+            delete unlockedReservations[reservationId];
+            wx.setStorageSync('unlockedReservations', unlockedReservations);
+            
+            const unlockTimes = wx.getStorageSync('unlockTimes') || {};
+            delete unlockTimes[reservationId];
+            wx.setStorageSync('unlockTimes', unlockTimes);
+            
+            console.log('[自动取消预约] 已清除本地存储标记');
+          } catch (e) {
+            console.error('[自动取消预约] 清除状态失败:', e);
           }
+          
+          // 延迟刷新页面数据，确保后端状态已更新
+          setTimeout(() => {
+            that.getReservationDetail(reservationId);
+          }, 500);
+        } else {
+          console.error('[自动取消预约] 取消失败，状态码:', res.statusCode, '响应:', res.data);
+          wx.showToast({
+            title: '自动取消失败，请手动取消',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      },
+      fail: (error) => {
+        console.error('[自动取消预约] 请求失败:', error);
+        wx.showToast({
+          title: '网络错误，请稍后重试',
+          icon: 'none',
+          duration: 2000
+        });
+      }
+    });
+  },
+
+  /**
+   * 导航到停车场
+   */
+  navigateToParking() {
+    const reservationDetail = this.data.reservationDetail;
+    if (!reservationDetail) {
+      wx.showToast({
+        title: '预约信息加载中，请稍候',
+        icon: 'none'
+      });
+      return;
+    }
+    
+    // 优先使用预约详情中的经纬度
+    if (reservationDetail.parkingLatitude && reservationDetail.parkingLongitude) {
+      wx.openLocation({
+        latitude: Number(reservationDetail.parkingLatitude),
+        longitude: Number(reservationDetail.parkingLongitude),
+        name: reservationDetail.parkingName || '停车场',
+        address: reservationDetail.parkingAddress || '',
+        scale: 18
+      });
+      return;
+    }
+    
+    // 如果没有经纬度，尝试从后端获取
+    wx.showLoading({ title: '获取位置信息...' });
+    const app = getApp();
+    const that = this;
+    
+    // 先尝试从预约详情中获取停车场ID，然后查询停车场位置
+    wx.request({
+      url: `${app.globalData.apiBaseUrl}/api/v1/reservations/${this.data.reservationId}`,
+      method: 'GET',
+      header: { 'Authorization': `Bearer ${app.globalData.token}` },
+      success: (res) => {
+        wx.hideLoading();
+        if (res.statusCode === 200 && res.data) {
+          const reservationData = res.data;
+          const parkingLot = reservationData.parkingLot;
+          
+          if (parkingLot && parkingLot.latitude && parkingLot.longitude) {
+            wx.openLocation({
+              latitude: Number(parkingLot.latitude),
+              longitude: Number(parkingLot.longitude),
+              name: parkingLot.name || reservationDetail.parkingName || '停车场',
+              address: parkingLot.address || reservationDetail.parkingAddress || '',
+              scale: 18
+            });
+          } else {
+            // 如果还是没有位置信息，尝试从附近停车场列表查找
+            that.findParkingFromNearbyList();
+          }
+        } else {
+          that.findParkingFromNearbyList();
+        }
+      },
+      fail: () => {
+        wx.hideLoading();
+        that.findParkingFromNearbyList();
+      }
+    });
+  },
+  
+  /**
+   * 从附近停车场列表查找停车场位置
+   */
+  findParkingFromNearbyList() {
+    const app = getApp();
+    const that = this;
+    const reservationDetail = this.data.reservationDetail;
+    
+    wx.showLoading({ title: '查找停车场位置...' });
+    
+    // 获取用户当前位置
+    wx.getLocation({
+      type: 'gcj02',
+      success: (locationRes) => {
+        // 获取附近停车场列表
+        app.request({
+          url: '/api/v1/parking/nearby',
+          method: 'GET',
+          data: {
+            longitude: locationRes.longitude,
+            latitude: locationRes.latitude,
+            radius: 50000
+          }
+        }).then(parkings => {
+          wx.hideLoading();
+          
+          const parkingList = Array.isArray(parkings) ? parkings : (parkings.data || []);
+          const parking = parkingList.find(p => 
+            p.name === reservationDetail.parkingName || 
+            p.id === reservationDetail.parkingId
+          );
+          
+          if (parking && parking.latitude && parking.longitude) {
+            wx.openLocation({
+              latitude: Number(parking.latitude),
+              longitude: Number(parking.longitude),
+              name: parking.name || reservationDetail.parkingName || '停车场',
+              address: parking.address || reservationDetail.parkingAddress || '',
+              scale: 18
+            });
+          } else {
+            wx.showToast({
+              title: '未找到停车场位置信息',
+              icon: 'none'
+            });
+          }
+        }).catch(err => {
+          wx.hideLoading();
+          console.error('获取附近停车场失败:', err);
+          wx.showToast({
+            title: '获取位置信息失败',
+            icon: 'none'
+          });
+        });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({
+          title: '需要位置权限才能导航',
+          icon: 'none'
         });
       }
     });

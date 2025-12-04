@@ -27,7 +27,12 @@
 
     <!-- 基本信息 -->
     <view class="section">
-      <view class="section-title">预约信息</view>
+      <view class="section-header">
+        <view class="section-title">预约信息</view>
+        <view class="navigate-button-small" bindtap="navigateToParking">
+          <text class="navigate-text-small">去这里</text>
+        </view>
+      </view>
       <view class="info-item">
         <text class="label">停车场：</text>
         <text class="value">{{reservationDetail.parkingName}}</text>

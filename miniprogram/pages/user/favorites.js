@@ -21,15 +21,12 @@ Page({
         return tb - ta;
       });
 
-      const app = getApp();
+      // 为每个收藏的停车场添加图片（使用本地图片路径）
       const enriched = favorites.map(item => {
-        const relativeImagePath = getParkingImage(item.id, item.name); // 如：/parking.png
-        const fullImageUrl = relativeImagePath 
-          ? `${app.globalData.imageBaseUrl}${relativeImagePath}` 
-          : (item.imageUrl || `${app.globalData.imageBaseUrl}/parking.png`);
+        const imagePath = getParkingImage(item.id, item.name); // 直接返回本地路径，如：/images/taiguhui.jpg
         return {
           ...item,
-          imageUrl: fullImageUrl
+          imageUrl: imagePath || '/images/parking.png' // 如果没有匹配的图片，使用默认图片
         };
       });
 

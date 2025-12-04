@@ -307,31 +307,3 @@ page {
   font-weight: 600;
 }
 
-/* 5. 退出登录区域 */
-.logout-section {
-  margin-top: 24px;
-  margin-bottom: 16px;
-}
-
-.logout-btn {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 16px;
-  text-align: center;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-.logout-btn:active {
-  background: rgba(255, 255, 255, 0.8);
-  transform: scale(0.98);
-}
-
-.logout-btn text {
-  font-size: 15px;
-  color: rgba(26, 26, 26, 0.8);
-  font-weight: 500;
-}

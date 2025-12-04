@@ -42,7 +42,7 @@
     <block wx:if="{{parkingList.length > 0}}">
       <view class="parking-item" wx:for="{{parkingList}}" wx:key="id" bindtap="navigateToDetail" data-id="{{item.id}}">
         <view class="parking-image">
-          <image class="parking-img" src="{{item.imageUrl}}" mode="aspectFill" binderror="onImageError" data-index="{{index}}"></image>
+          <image class="parking-img" src="{{item.imageUrl}}" mode="aspectFill" lazy-load="false" webp="false" binderror="onImageError" bindload="onImageLoad" data-index="{{index}}"></image>
         </view>
         <view class="parking-info">
           <view class="parking-name">{{item.name}}</view>

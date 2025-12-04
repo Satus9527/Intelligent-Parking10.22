@@ -101,7 +101,7 @@ App({
     })
   },
 
-  // 封装网络请求
+  // 封装网络请求（增强日志和错误处理）
   request: function(options) {
     const { url, method = 'GET', data = {}, header = {}, showError = true } = options
     
@@ -109,9 +109,13 @@ App({
       header['Authorization'] = `Bearer ${this.globalData.token}`
     }
 
+    const requestId = Date.now();
+    const fullUrl = `${this.globalData.apiBaseUrl}${url}`;
+    console.log(`[网络请求 #${requestId}] ${method} ${fullUrl}`, data);
+
     return new Promise((resolve, reject) => {
       wx.request({
-        url: `${this.globalData.apiBaseUrl}${url}`,
+        url: fullUrl,
         method,
         data,
         header: {
@@ -120,6 +124,7 @@ App({
         },
         timeout: options.timeout || this.globalData.appConfig.timeout,
         success: (res) => {
+          console.log(`[网络请求 #${requestId}] 响应状态码: ${res.statusCode}`);
           if (res.statusCode >= 200 && res.statusCode < 300) {
              // 兼容 {code: 200, data: ...} 和直接返回数据的情况
              if (res.data.code && res.data.code !== 200 && res.data.code !== 0) {
@@ -144,6 +149,7 @@ App({
         },
         fail: (err) => {
           const isTimeout = err.errMsg && err.errMsg.includes('timeout')
+          console.error(`[网络请求 #${requestId}] 请求失败:`, err);
           if (showError) {
             wx.showToast({
               title: isTimeout ? '请求超时' : '网络异常',

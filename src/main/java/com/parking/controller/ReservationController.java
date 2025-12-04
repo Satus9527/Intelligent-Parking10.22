@@ -215,4 +215,31 @@ public class ReservationController {
             return ResponseEntity.status(500).body(response);
         }
     }
+    
+    /**
+     * 清空已完成和已取消的预约记录
+     * @return 删除的记录数量
+     */
+    @DeleteMapping("/user/completed-cancelled")
+    public ResponseEntity<Map<String, Object>> clearCompletedAndCancelledReservations() {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            // 从请求上下文获取用户ID
+            Long userId = 1L; // 临时硬编码，实际应从JWT或Session中获取
+            
+            int deletedCount = reservationService.deleteCompletedAndCancelledReservations(userId);
+            
+            response.put("success", true);
+            response.put("message", "清空成功，已删除 " + deletedCount + " 条记录");
+            response.put("data", deletedCount);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.err.println("清空预约记录异常: " + e.getMessage());
+            e.printStackTrace();
+            response.put("success", false);
+            response.put("message", "清空失败：" + e.getMessage());
+            response.put("data", null);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
 }

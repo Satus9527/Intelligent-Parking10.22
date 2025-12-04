@@ -762,6 +762,7 @@
   padding: 16px;
   margin: 24px 16px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .notice-icon {
@@ -773,11 +774,10 @@
   font-size: 13px;
   color: #1a1a1a;
   flex: 1;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   font-weight: 500;
-  
+  line-height: 1.5;
+  word-wrap: break-word;
+  word-break: break-all;
 }
 
 /* ============================================

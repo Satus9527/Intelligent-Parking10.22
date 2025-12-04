@@ -2,6 +2,9 @@
 <view class="container">
   <view class="header">
     <text class="title">我的预约</text>
+    <view class="clear-button" wx:if="{{!loading && !error && !empty && hasCompletedOrCancelled}}" bindtap="clearCompletedReservations">
+      <text class="clear-button-text">清空记录</text>
+    </view>
   </view>
 
   <!-- 加载中状态 -->

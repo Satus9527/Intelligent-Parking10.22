@@ -873,6 +873,59 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         return count;
     }
     
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteCompletedAndCancelledReservations(Long userId) {
+        try {
+            System.out.println("========== 开始删除已完成、已取消和已超时的预约记录 ==========");
+            System.out.println("用户ID: " + userId);
+            
+            // 查询该用户的所有已完成、已取消和已超时的预约
+            // 状态1（已使用）+ 已支付 = 已完成
+            // 状态2 = 已取消
+            // 状态3 = 已超时
+            QueryWrapper<ReservationEntity> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("user_id", userId);
+            queryWrapper.and(wrapper -> {
+                // 已完成：状态1（已使用）且已支付
+                wrapper.or(orWrapper1 -> {
+                    orWrapper1.eq("status", 1)
+                              .eq("payment_status", 1);
+                });
+                // 已取消：状态2
+                wrapper.or(orWrapper2 -> {
+                    orWrapper2.eq("status", 2);
+                });
+                // 已超时：状态3
+                wrapper.or(orWrapper3 -> {
+                    orWrapper3.eq("status", 3);
+                });
+            });
+            
+            List<ReservationEntity> toDelete = this.list(queryWrapper);
+            int count = toDelete != null ? toDelete.size() : 0;
+            
+            if (count > 0) {
+                // 批量删除
+                boolean result = this.remove(queryWrapper);
+                if (result) {
+                    System.out.println("成功删除 " + count + " 条已完成、已取消和已超时的预约记录");
+                } else {
+                    System.out.println("删除失败");
+                    return 0;
+                }
+            } else {
+                System.out.println("没有需要删除的记录");
+            }
+            
+            return count;
+        } catch (Exception e) {
+            System.err.println("删除预约记录异常: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("删除预约记录失败: " + e.getMessage(), e);
+        }
+    }
+    
 
     
     /**

@@ -54,16 +54,12 @@ Page({
     try {
       // 从本地存储获取收藏的停车场
       const favorites = wx.getStorageSync('favoriteParkings') || [];
-      // 为每个收藏的停车场添加图片（使用后端托管的完整 URL）
-      const app = getApp();
+      // 为每个收藏的停车场添加图片（使用本地图片路径）
       const favoritesWithImages = favorites.slice(0, 6).map(item => {
-        const relativeImagePath = getParkingImage(item.id, item.name); // 如：/parking.png
-        const fullImageUrl = relativeImagePath 
-          ? `${app.globalData.imageBaseUrl}${relativeImagePath}` 
-          : (item.imageUrl || `${app.globalData.imageBaseUrl}/parking.png`);
+        const imagePath = getParkingImage(item.id, item.name); // 直接返回本地路径，如：/images/taiguhui.jpg
         return {
           ...item,
-          imageUrl: fullImageUrl
+          imageUrl: imagePath || '/images/parking.png' // 如果没有匹配的图片，使用默认图片
         };
       });
       this.setData({
@@ -110,24 +106,6 @@ Page({
   aboutUs() { 
     wx.navigateTo({
       url: '/pages/user/about'
-    });
-  },
-
-  // 退出登录
-  handleLogout() {
-    wx.showModal({
-      title: '提示',
-      content: '确定要退出登录吗？',
-      success: (res) => {
-        if (res.confirm) {
-          wx.removeStorageSync('token');
-          wx.removeStorageSync('userInfo');
-          app.globalData.token = null;
-          app.globalData.userInfo = null;
-          this.setData({ userInfo: null });
-          wx.showToast({ title: '已退出', icon: 'none' });
-        }
-      }
     });
   },
 

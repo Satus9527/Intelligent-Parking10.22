@@ -170,8 +170,10 @@ Page({
       url: '/api/v1/parking/nearby',
       method: 'GET',
       data: requestData,
+      timeout: 15000, // 15秒超时
       showError: true // 显示错误提示
     }).then(res => {
+      console.log('[停车场列表] 请求成功:', res);
       // 检查响应数据是否为数组或包含data数组
       let allParkings = [];
       console.log('API响应数据:', res);
@@ -205,12 +207,13 @@ Page({
         // 确保车位数正确（即使为0也要显示）
         const availableNum = Number(parking.availableSpaces) || 0;
         
-        // 获取停车场图片（先拿相对路径，再拼接全路径）
-        const relativeImagePath = getParkingImage(parking.id, parking.name); // 如：/taiguhui.jpg
-        // 确保图片URL是完整的网络地址
-        const parkingImage = relativeImagePath 
-          ? `${app.globalData.imageBaseUrl}${relativeImagePath}` 
-          : `${app.globalData.imageBaseUrl}/taiguhui.jpg`; // 使用默认图片
+        // 获取停车场图片（使用本地图片路径）
+        const parkingImage = getParkingImage(parking.id, parking.name); // 直接返回本地路径，如：/images/taiguhui.jpg
+        console.log('停车场图片路径（本地）:', {
+          parkingId: parking.id,
+          parkingName: parking.name,
+          imagePath: parkingImage
+        });
         
         return {
           id: Number(parking.id) || 0, // 关键：确保ID是数字
@@ -357,6 +360,18 @@ Page({
     this.loadMore();
   },
 
+  // 图片加载成功处理
+  onImageLoad(e) {
+    const index = e.currentTarget.dataset.index;
+    console.log('========== 图片加载成功 ==========');
+    console.log('索引:', index);
+    if (this.data.parkingList[index]) {
+      console.log('停车场:', this.data.parkingList[index].name);
+      console.log('图片URL:', this.data.parkingList[index].imageUrl);
+    }
+    console.log('==================================');
+  },
+
   // 图片加载失败处理
   onImageError(e) {
     const index = e.currentTarget.dataset.index;
@@ -364,14 +379,48 @@ Page({
     const parkingList = this.data.parkingList;
     
     if (parkingList[index]) {
-      // 如果图片加载失败，使用默认图片（网络路径）
-      const imageBaseUrl = this.data.imageBaseUrl || app.globalData.imageBaseUrl || 'http://172.20.10.5:8082/images';
-      const defaultImage = `${imageBaseUrl}/parking.png`;
-      parkingList[index].imageUrl = defaultImage;
-      this.setData({
-        parkingList: parkingList
-      });
-      console.log('图片加载失败，已切换到默认图片:', defaultImage);
+      console.error('========== 图片加载失败 ==========');
+      console.error('停车场:', parkingList[index].name);
+      console.error('失败的URL:', parkingList[index].imageUrl);
+      console.error('错误详情:', e.detail);
+      
+      // 真机调试时，尝试使用 wx.downloadFile 下载图片到本地临时路径
+      const that = this;
+      const imageUrl = parkingList[index].imageUrl;
+      
+      // 检查是否是网络图片
+      if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+        console.log('尝试下载图片到本地临时路径...');
+        wx.downloadFile({
+          url: imageUrl,
+          success: function(res) {
+            console.log('图片下载成功，使用临时路径:', res.tempFilePath);
+            parkingList[index].imageUrl = res.tempFilePath;
+            that.setData({
+              parkingList: parkingList
+            });
+          },
+          fail: function(err) {
+            console.error('图片下载也失败，使用默认图片');
+            console.error('下载错误:', err);
+            // 如果下载失败，使用本地默认图片
+            const defaultImage = '/images/parking.png';
+            parkingList[index].imageUrl = defaultImage;
+            that.setData({
+              parkingList: parkingList
+            });
+          }
+        });
+      } else {
+        // 如果不是网络图片，直接使用本地默认图片
+        const defaultImage = '/images/parking.png';
+        parkingList[index].imageUrl = defaultImage;
+        this.setData({
+          parkingList: parkingList
+        });
+      }
+      
+      console.error('==================================');
     }
   }
 });

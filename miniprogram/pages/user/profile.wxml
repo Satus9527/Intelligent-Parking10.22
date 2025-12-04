@@ -56,15 +56,11 @@
         <text class="function-label">客服中心</text>
       </view>
       <view class="function-item" bindtap="aboutUs">
-        <view class="function-icon">ℹ️</view>
+        <view class="function-icon">
+          <image class="function-icon-img" src="/images/help-question-icon.svg" mode="aspectFit"></image>
+        </view>
         <text class="function-label">关于瞬泊</text>
       </view>
-    </view>
-  </view>
-  
-  <view class="logout-section" wx:if="{{userInfo}}">
-    <view class="logout-btn" bindtap="handleLogout">
-      <text>退出当前账号</text>
     </view>
   </view>
 </view>

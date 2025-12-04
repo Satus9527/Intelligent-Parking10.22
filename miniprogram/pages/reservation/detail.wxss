@@ -162,6 +162,9 @@
   font-size: 16px;
   font-weight: 600;
   color: #1a1a1a;
+}
+
+.section-header {
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
@@ -203,7 +206,7 @@
   margin-top: 24px;
 }
 
-.pay-btn, .cancel-btn, .back-btn, .complete-btn {
+.pay-btn, .cancel-btn, .back-btn, .complete-btn, .navigate-btn {
   padding: 14px 0;
   font-size: 16px;
   border-radius: 12px;
@@ -225,7 +228,7 @@
   transform: scale(0.98);
 }
 
-.cancel-btn, .back-btn {
+.cancel-btn, .back-btn, .navigate-btn {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -233,7 +236,7 @@
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.cancel-btn:active, .back-btn:active {
+.cancel-btn:active, .back-btn:active, .navigate-btn:active {
   background: rgba(255, 255, 255, 0.9);
   transform: scale(0.98);
 }
@@ -249,6 +252,41 @@
 .complete-btn:active {
   transform: scale(0.98);
   box-shadow: 0 2px 8px rgba(255, 107, 107, 0.25);
+}
+
+/* 预约信息标题区域 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+/* 小导航按钮 - 位于预约信息标题旁边 */
+.navigate-button-small {
+  padding: 6px 12px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #e6f4ff;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(22, 119, 255, 0.2);
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.navigate-button-small:active {
+  background: #d4e8ff;
+  transform: scale(0.95);
+}
+
+.navigate-text-small {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1677ff;
+  text-align: center;
 }
 
 /* 响应式调整 */

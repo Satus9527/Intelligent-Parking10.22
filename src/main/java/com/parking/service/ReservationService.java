@@ -111,4 +111,11 @@ public interface ReservationService extends IService<ReservationEntity> {
      * @return 更新的预约数量
      */
     int updateTimeoutReservations();
+    
+    /**
+     * 批量删除已完成和已取消的预约记录
+     * @param userId 用户ID
+     * @return 删除的记录数量
+     */
+    int deleteCompletedAndCancelledReservations(Long userId);
 }
