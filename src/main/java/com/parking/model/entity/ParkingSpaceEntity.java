@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.Date;
 
 /**
  * 车位实体类
@@ -44,8 +44,8 @@ public class ParkingSpaceEntity {
     @Version
     private Integer version; // 乐观锁版本号
     
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Date createdAt;
+    private Date updatedAt;
     
     // 状态常量
     public static final class SpaceStatus {

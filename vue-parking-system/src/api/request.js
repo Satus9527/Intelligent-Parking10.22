@@ -1,72 +1,42 @@
 import axios from 'axios'
-import { showErrorToast } from '../utils'
+import { ElMessage } from 'element-plus'
 
-// 创建axios实例
 const service = axios.create({
-  baseURL: 'http://172.20.10.5:8082', // 后端API基础URL（真机测试使用局域网IP）
-  timeout: 10000, // 请求超时时间
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  baseURL: 'http://localhost:8082', // 确保这里是您的后端地址
+  timeout: 10000
 })
 
-// 请求拦截器
+// 请求拦截
 service.interceptors.request.use(
   config => {
-    // 可以在这里添加token等认证信息
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
-    }
+    // 如果有 token 逻辑可以在此添加
     return config
   },
   error => {
-    console.error('请求错误:', error)
     return Promise.reject(error)
   }
 )
 
-// 响应拦截器
+// 响应拦截
 service.interceptors.response.use(
   response => {
     return response
   },
   error => {
-    // 统一错误处理
-    let errorMessage = '网络异常，请稍后重试'
-    
+    let msg = '请求失败'
     if (error.response) {
-      // 服务器返回错误状态码
-      switch (error.response.status) {
-        case 400:
-          errorMessage = error.response.data?.message || '请求参数错误'
-          break
-        case 401:
-          errorMessage = '未授权，请重新登录'
-          // 可以在这里处理登出逻辑
-          localStorage.removeItem('token')
-          break
-        case 403:
-          errorMessage = '没有权限访问该资源'
-          break
-        case 404:
-          errorMessage = '请求的资源不存在'
-          break
-        case 500:
-          errorMessage = '服务器内部错误'
-          break
-        default:
-          errorMessage = error.response.data?.message || `请求失败: ${error.response.status}`
-      }
+      const status = error.response.status
+      if (status === 401) msg = '未授权，请登录'
+      else if (status === 403) msg = '拒绝访问'
+      else if (status === 404) msg = '请求资源不存在'
+      else if (status === 500) msg = '服务器内部错误'
+      else msg = error.response.data?.message || msg
     } else if (error.request) {
-      // 请求已发出但没有收到响应
-      errorMessage = '服务器无响应，请稍后重试'
+      msg = '服务器无响应'
     }
     
-    // 显示错误提示
-    showErrorToast(errorMessage)
-    console.error('响应错误:', error)
-    
+    // 使用 Element Plus 的消息提示
+    ElMessage.error(msg)
     return Promise.reject(error)
   }
 )

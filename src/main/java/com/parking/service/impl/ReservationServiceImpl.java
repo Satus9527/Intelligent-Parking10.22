@@ -309,7 +309,7 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                     spaceEntity.setStatus("AVAILABLE");
                     spaceEntity.setState(0);
                     spaceEntity.setIsAvailable(1);
-                    spaceEntity.setUpdatedAt(java.time.LocalDateTime.now());
+                    spaceEntity.setUpdatedAt(new Date());
                     // 如果使用乐观锁，保持版本号不变（MyBatis-Plus会自动处理）
                     
                     // 使用UpdateWrapper更新，避免乐观锁问题

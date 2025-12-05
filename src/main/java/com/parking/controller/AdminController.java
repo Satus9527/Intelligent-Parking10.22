@@ -73,7 +73,7 @@ public class AdminController {
      * @param pageSize 每页大小，默认10
      * @return 异常日志分页结果
      */
-    @GetMapping("/error-logs/reservation")
+    @GetMapping("/error-logs")
     public ResponseEntity<PageResult<Map<String, Object>>> getReservationErrorLogs(
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize) {

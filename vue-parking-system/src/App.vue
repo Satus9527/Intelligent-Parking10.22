@@ -1,65 +1,26 @@
 <template>
   <div class="app-container">
-    <!-- 全局加载指示器 -->
-    <Loading v-if="loading" />
-    
-    <!-- 全局Toast提示 -->
-    <Toast />
-    
-    <!-- 全局对话框 -->
-    <Dialog />
-    
-    <!-- 路由视图容器 -->
     <RouterView />
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import Loading from './components/common/Loading.vue'
-import Toast from './components/common/Toast.vue'
-import Dialog from './components/common/Dialog.vue'
+<script setup>
+import { onMounted } from 'vue'
 import { useAppStore } from './stores/modules/app'
 
-export default {
-  name: 'App',
-  components: {
-    Loading,
-    Toast,
-    Dialog
-  },
-  setup() {
-    const router = useRouter()
-    const appStore = useAppStore()
-    const loading = ref(false)
+const appStore = useAppStore()
 
-    // 应用初始化
-    onMounted(() => {
-      initApp()
-    })
-
-    // 初始化应用
-    const initApp = async () => {
-      loading.value = true
-      try {
-        // 检查用户登录状态
-        await appStore.checkLoginStatus()
-        
-        // 初始化应用配置
-        await appStore.initAppConfig()
-      } catch (error) {
-        console.error('应用初始化失败:', error)
-      } finally {
-        loading.value = false
-      }
-    }
-
-    return {
-      loading
-    }
+// 应用初始化
+onMounted(async () => {
+  try {
+    // 这里的 store 方法如果存在则调用，用于初始化用户信息或配置
+    // 如果之前删除了 store 中相关逻辑，这里也可以去掉
+    if (appStore.checkLoginStatus) await appStore.checkLoginStatus()
+    if (appStore.initAppConfig) await appStore.initAppConfig()
+  } catch (error) {
+    console.error('应用初始化失败:', error)
   }
-}
+})
 </script>
 
 <style>
@@ -89,22 +50,5 @@ html, body {
   width: 100%;
   height: 100%;
   position: relative;
-}
-
-/* 通用样式类 */
-.text-center {
-  text-align: center;
-}
-
-.text-right {
-  text-align: right;
-}
-
-.mt-10 {
-  margin-top: 10px;
-}
-
-.mb-10 {
-  margin-bottom: 10px;
 }
 </style>

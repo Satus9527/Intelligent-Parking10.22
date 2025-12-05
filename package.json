@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "@pixelium/web-vue": "^0.0.2-fix"
+    "@element-plus/icons-vue": "^2.3.2",
+    "@pixelium/web-vue": "^0.0.2-fix",
+    "element-plus": "^2.11.9"
   }
 }
